@@ -1,6 +1,6 @@
 #!/bin/bash
 sudo apt update
-sudo apt install python3-pip python3.8 unzip
+sudo apt install python3-pip python3.10 unzip
 python3.8 -m pip install -U pip
 git clone https://github.com/domZippilli/gcsfast.git
 cd gcsfast
