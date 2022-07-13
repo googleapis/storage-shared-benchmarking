@@ -12,6 +12,7 @@ python3.10 -m pip install .
 echo PATH=/home/$USER/.local/bin:$PATH >> ~/.bashrc && source ~/.bashrc
 cd
 
+git clone https://github.com/googleapis/google-cloud-cpp.git -o $HOME/google-cloud-cpp
 
 sudo apt update
 sudo apt install -y build-essential cmake git gcc g++ cmake \
@@ -49,7 +50,5 @@ cd $HOME/google-cloud-cpp
 cmake -H. -Bcmake-out/home -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake
 cmake --build cmake-out/home
 
-git clone https://github.com/googleapis/google-cloud-cpp.git
-cd google-cloud-cpp
 # sudo apt install awscli
 # aws configure
