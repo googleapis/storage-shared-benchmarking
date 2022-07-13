@@ -11,5 +11,5 @@ cd gcloud-aio/storage
 python3.8 -m pip install .
 echo PATH=/home/$USER/.local/bin:$PATH >> ~/.bashrc && source ~/.bashrc
 cd
-sudo apt install awscli
-aws configure
+# sudo apt install awscli
+# aws configure
