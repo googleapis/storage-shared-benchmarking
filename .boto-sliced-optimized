@@ -1,0 +1,5 @@
+[GSUtil]
+parallel_composite_upload_threshold=150M
+sliced_object_download_component_size=1M
+sliced_object_download_threshold=50M
+sliced_object_download_max_components=16
