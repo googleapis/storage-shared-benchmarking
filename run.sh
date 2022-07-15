@@ -28,6 +28,7 @@ case "$app" in
     --minimum-object-size=16MiB \
     --maximum-object-size=256MiB \
     --minimum-sample-count=1 \
+    --enabled-apis=JSON,XML \
     --duration=5s"
     ul="~/google-cloud-cpp/cmake-out/home/google/cloud/storage/benchmarks/storage_throughput_vs_cpu_benchmark --project-id=spec-test-ruby-samples \
     --region=us-central1 \
@@ -36,6 +37,7 @@ case "$app" in
     --minimum-object-size=16MiB \
     --maximum-object-size=256MiB \
     --minimum-sample-count=1 \
+    --enabled-apis=JSON,XML \
     --duration=5s"
     ;;
 
