@@ -20,6 +20,11 @@ fi
 
 # Set the commands for the various apps.
 case "$app" in
+  cpp)
+    dl="~/google-cloud-cpp/cmake-out/google/cloud/storage/benchmarks/storage_throughput_vs_cpu_benchmark --project-id 'spec-test-ruby-samples' --region=us-central1 --thread-count=1 --minimum-object-size=16MiB --maximum-object-size=256MiB --minimum-sample-count=1 --duration=5s | tee tp-vs-cpu.tp.txt"
+    ul="~/google-cloud-cpp/cmake-out/google/cloud/storage/benchmarks/storage_throughput_vs_cpu_benchmark --project-id 'spec-test-ruby-samples' --region=us-central1 --thread-count=1 --minimum-object-size=16MiB --maximum-object-size=256MiB --minimum-sample-count=1 --duration=5s | tee tp-vs-cpu.tp.txt"
+    ;;
+
   aws)
     skip="1x10G"
     dl="aws s3 cp --recursive s3://do-not-delete-benchmark-gs/WORK FOLDER/aws-WORK"
@@ -43,7 +48,7 @@ case "$app" in
 
   gsnohash)
     dl="CLOUDSDK_STORAGE_CHECK_HASHES=never benchmarking/timeout.sh -t 500 gcloud alpha storage cp -r gs://do-not-delete-us-east4/WORK/* FOLDER/gsnohash-WORK/"
-    ul="CLOUDSDK_STORAGE_PARALLEL_COMPOSITE_UPLOAD_THRESHOLD=150M CLOUDSDK_STORAGE_CHECK_HASHES=never benchmarking/timeout.sh -t 500 gcloud alpha storage cp -r FOLDER/gsnohash-WORK/* gs://do-not-delete-us-east4/"  
+    ul="CLOUDSDK_STORAGE_PARALLEL_COMPOSITE_UPLOAD_THRESHOLD=150M CLOUDSDK_STORAGE_CHECK_HASHES=never benchmarking/timeout.sh -t 500 gcloud alpha storage cp -r FOLDER/gsnohash-WORK/* gs://do-not-delete-us-east4/"
     ;;
 
   gsutil)
@@ -70,7 +75,7 @@ timestamp() {
 
 # Perform downloads.
 for f in "${folders[@]}"
-do 
+do
   for w in "${work[@]}"
   do
     # Skip and record '-' for the entry at this folder/workload.
@@ -102,11 +107,11 @@ do
 done
 
 for f in "${folders[@]}"
-do  
+do
   for w in "${work[@]}"
   do
     # Skip and record '-' for the entry at this folder/workload. Also skips
-    # uploads for curl. 
+    # uploads for curl.
     if [[ "$f" = "/dev/shm" && "$too_big" =~ .*"$w".* ]] || [[ "$skip" =~ .*"$w".* ]] || [[ "$ul" = "" ]]; then
       echo "0" >> time-$app.txt
       continue
@@ -127,11 +132,11 @@ do
     echo '---------------------------------------------------------'
     echo $command
     eval $command
-    
+
     # End the timer and record elapsed time in <seconds>.<nanos>.
     end=$(timestamp)
     bc <<< "scale = 3; ($end - $start) / 1000" >> time-$app.txt
-    
+
     # Ensures TmpFS directory stays clear.
     rm -rf /dev/shm/*
   done

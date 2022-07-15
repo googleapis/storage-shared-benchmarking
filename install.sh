@@ -15,6 +15,7 @@ cd
 git clone https://github.com/googleapis/google-cloud-cpp.git -o $HOME/google-cloud-cpp
 
 sudo apt update
+sudo apt-get install -y curl zip unzip tar
 sudo apt install -y build-essential cmake git gcc g++ cmake \
         libc-ares-dev libc-ares2 libbenchmark-dev libcurl4-openssl-dev libssl-dev \
         make npm pkg-config tar wget zlib1g-dev
