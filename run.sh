@@ -23,7 +23,7 @@ case "$app" in
   cpp)
     dl="~/google-cloud-cpp/cmake-out/home/google/cloud/storage/benchmarks/storage_throughput_vs_cpu_benchmark --project-id=spec-test-ruby-samples \
     --region=us-central1 \
-    --enabled-apis=xml \
+    --enabled-apis=XML \
     --thread-count=1 \
     --minimum-object-size=16MiB \
     --maximum-object-size=256MiB \
@@ -31,7 +31,7 @@ case "$app" in
     --duration=5s"
     ul="~/google-cloud-cpp/cmake-out/home/google/cloud/storage/benchmarks/storage_throughput_vs_cpu_benchmark --project-id=spec-test-ruby-samples \
     --region=us-central1 \
-    --enabled-apis=xml \
+    --enabled-apis=XML \
     --thread-count=1 \
     --minimum-object-size=16MiB \
     --maximum-object-size=256MiB \
