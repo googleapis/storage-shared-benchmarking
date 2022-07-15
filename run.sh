@@ -21,8 +21,8 @@ fi
 # Set the commands for the various apps.
 case "$app" in
   cpp)
-    dl="~/google-cloud-cpp/cmake-out/home/google/cloud/storage/benchmarks/storage_throughput_vs_cpu_benchmark --project-id= 'spec-test-ruby-samples' --region=us-central1 --thread-count=1 --minimum-object-size=16MiB --maximum-object-size=256MiB --minimum-sample-count=1 --duration=5s | tee tp-vs-cpu.tp.txt"
-    ul="~/google-cloud-cpp/cmake-out/home/google/cloud/storage/benchmarks/storage_throughput_vs_cpu_benchmark --project-id= 'spec-test-ruby-samples' --region=us-central1 --thread-count=1 --minimum-object-size=16MiB --maximum-object-size=256MiB --minimum-sample-count=1 --duration=5s | tee tp-vs-cpu.tp.txt"
+    dl="~/google-cloud-cpp/cmake-out/home/google/cloud/storage/benchmarks/storage_throughput_vs_cpu_benchmark --project-id=spec-test-ruby-samples --region=us-central1 --thread-count=1 --minimum-object-size=16MiB --maximum-object-size=256MiB --minimum-sample-count=1 --duration=5s | tee tp-vs-cpu.tp.txt"
+    ul="~/google-cloud-cpp/cmake-out/home/google/cloud/storage/benchmarks/storage_throughput_vs_cpu_benchmark --project-id=spec-test-ruby-samples --region=us-central1 --thread-count=1 --minimum-object-size=16MiB --maximum-object-size=256MiB --minimum-sample-count=1 --duration=5s | tee tp-vs-cpu.tp.txt"
     ;;
 
   aws)
