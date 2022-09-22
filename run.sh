@@ -15,13 +15,14 @@
 # limitations under the License.
 
 # Parameters
-WORKLOAD=$1
-PROJECT=$2
-BUCKET_NAME=$3
-BIGQUERY_DATASET=$4
+WORKLOAD="${1}"
+PROJECT="${2}"
+BUCKET_NAME="${3}"
+BIGQUERY_DATASET="${4}"
 API="${5}"
 OBJECT_SIZE="${6}"
-WORKERS="${7}"
+SAMPLES="${7}"
+WORKERS="${8}"
 
 workload_1_golang() {
   SALT="$(date +'%s%N')"
@@ -31,8 +32,8 @@ workload_1_golang() {
                        -bucket "${BUCKET_NAME}" \
                        -defaults \
                        -workers "${WORKERS}" \
-                       -min_samples 100 \
-                       -max_samples 100 \
+                       -min_samples "${SAMPLES}" \
+                       -max_samples "${SAMPLES}" \
                        -min_size "${OBJECT_SIZE}" \
                        -max_size "${OBJECT_SIZE}" \
                        -api "${API}" \
@@ -66,7 +67,7 @@ workload_7() {
     --maximum-object-size="${OBJECT_SIZE}" \
     --bucket-name="${BUCKET_NAME}" \
     --object-prefix="${OBJECT_PREFIX}-${API}-${OBJECT_SIZE}" \
-    --iteration-count=1 > "${UPLOAD_RESULTS_FILE}"
+    --iteration-count="${SAMPLES}" > "${UPLOAD_RESULTS_FILE}"
   cat "${UPLOAD_RESULTS_FILE}" | \
       grep -v "#.*" > "${UPLOAD_RESULTS_FILE_PROCESSED}"
   bq_cli -p "${PROJECT}" -d "${BIGQUERY_DATASET}" -t "${UPLOAD_BIGQUERY_TABLE}" -f "${UPLOAD_RESULTS_FILE_PROCESSED}"
@@ -81,7 +82,7 @@ workload_7() {
     --read-buffer-size="${OBJECT_SIZE}" \
     --bucket-name="${BUCKET_NAME}" \
     --object-prefix="${OBJECT_PREFIX}-${API}-${OBJECT_SIZE}" \
-    --iteration-count=1 > "${DOWNLOAD_RESULTS_FILE}"
+    --iteration-count="${SAMPLES}" > "${DOWNLOAD_RESULTS_FILE}"
   cat "${DOWNLOAD_RESULTS_FILE}" | \
       grep -v "#.*" > "${DOWNLOAD_RESULTS_FILE_PROCESSED}"
   bq_cli -p "${PROJECT}" -d "${BIGQUERY_DATASET}" -t "${DOWNLOAD_BIGQUERY_TABLE}" -f "${DOWNLOAD_RESULTS_FILE_PROCESSED}"
