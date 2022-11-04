@@ -139,6 +139,13 @@ workload_7() {
   local DOWNLOAD_OBJECT_PREFIX="test-object-$(date +'%s%N')-${API}-${OBJECT_SIZE}"
   local DOWNLOAD_RESULTS_FILE="${WORKLOAD}_${API}_${OBJECT_SIZE}_DOWNLOAD"
   local DOWNLOAD_RESULTS_FILE_PROCESSED="${DOWNLOAD_RESULTS_FILE}_PROCESSED"
+  /usr/bin/create_dataset \
+    --bucket-name="${BUCKET_NAME}" \
+    --object-prefix="${DOWNLOAD_OBJECT_PREFIX}" \
+    --minimum-object-size="${OBJECT_SIZE}" \
+    --maximum-object-size="${OBJECT_SIZE}" \
+    --object-count=1 \
+    --thread-count=1 > /dev/null
   /usr/bin/aggregate_download_throughput_benchmark \
     --labels=workload_7_download \
     --api="${API}" \
