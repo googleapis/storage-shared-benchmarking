@@ -23,8 +23,8 @@ function print_usage() {
 Usage: run.sh [options]
   Options:
     -h|--help                   Print this help message
-    --workload1=<lang>          Run workload 1 for <lang>
-    --workload7                 Run workload 7
+    --workload_1=<lang>          Run workload 1 for <lang>
+    --workload_7                 Run workload 7
     --project=<project>         Use <project> as project to use for workloads
     --bucket=<bucket>           Use <bucket> as bucket to use for workloads
     --dataset=<dataset>         Use <dataset> for to write data into
@@ -55,11 +55,11 @@ while true; do
       print_usage
       exit 0
       ;;
-    --workload1)
+    --workload_1)
       WORKLOAD="workload_1_$2"
       shift 2
       ;;
-    --workload7)
+    --workload_7)
       WORKLOAD="workload_7"
       shift 1
       ;;
