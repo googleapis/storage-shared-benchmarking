@@ -40,6 +40,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("os.Open: %v", err)
 	}
+	defer f.Close()
 	tableRef := client.Dataset(datasetID).Table(tableID)
 	// if err := tableRef.Create(ctx, &bigquery.TableMetadata{}); err != nil {
 	// 	log.Printf("tableRef.Create(ignoring): %v", err)
