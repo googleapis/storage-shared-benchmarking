@@ -135,6 +135,7 @@ workload_7() {
   cat "${UPLOAD_RESULTS_FILE}" | \
       grep -v "#.*" > "${UPLOAD_RESULTS_FILE_PROCESSED}"
   tail -n +2 "${UPLOAD_RESULTS_FILE_PROCESSED}" | awk -F, '{print "throughput{workload="$2",Iteration="$1",ObjectCount="$3",ResumableUploadChunkSize="$4",ThreadCount="$5",Api="$6",GrpcChannelCount="$7",GrpcPluginConfig="$8",RestHttpVersion="$9",ClientPerThread="$10",StatusCode="$11",Peer="$12",BytesUploaded="$13",ElapsedMicroseconds="$14",IterationBytes="$15",IterationElapsedMicroseconds="$16",IterationCpuMicroseconds="$17"} "(($13/1024/1024)/($14/1000000))}'
+  rm "${UPLOAD_RESULTS_FILE_PROCESSED}" "${UPLOAD_RESULTS_FILE}"
 
   local DOWNLOAD_OBJECT_PREFIX="test-object-$(date +'%s%N')-${API}-${OBJECT_SIZE}"
   local DOWNLOAD_RESULTS_FILE="${WORKLOAD}_${API}_${OBJECT_SIZE}_DOWNLOAD"
@@ -155,6 +156,7 @@ workload_7() {
   cat "${DOWNLOAD_RESULTS_FILE}" | \
       grep -v "#.*" > "${DOWNLOAD_RESULTS_FILE_PROCESSED}"
   tail -n +2 "${DOWNLOAD_RESULTS_FILE_PROCESSED}" | awk -F, '{print "throughput{workload="$1",Iteration="$2",ObjectCount="$3",DatasetSize="$4",ThreadCount="$5",RepeatsPerIteration="$6",ReadSize="$7",ReadBufferSize="$8",Api="$9",GrpcChannelCount="$10",GrpcPluginConfig="$11",ClientPerThread="$12",StatusCode="$13",Peer="$14",BytesDownloaded="$15",ElapsedMicroseconds="$16",IterationBytes="$17",IterationElapsedMicroseconds="$18",IterationCpuMicroseconds="$19"} "(($4/1024/1024)/($16/1000000))}'
+  rm "${DOWNLOAD_RESULTS_FILE_PROCESSED}" "${DOWNLOAD_RESULTS_FILE}"
 }
 
 # Perform workload
