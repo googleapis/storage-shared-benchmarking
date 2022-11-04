@@ -120,9 +120,8 @@ workload_1_golang() {
 }
 
 workload_7() {
-  local OBJECT_PREFIX="test-object-$(date +'%s%N')"
-  local UPLOAD_BIGQUERY_TABLE="${WORKLOAD}_${API}_upload"
-  local UPLOAD_RESULTS_FILE="${WORKLOAD}_${API}_${OBJECT_SIZE}_upload"
+  local UPLOAD_OBJECT_PREFIX="test-object-$(date +'%s%N')-${API}-${OBJECT_SIZE}"
+  local UPLOAD_RESULTS_FILE="${WORKLOAD}_${API}_${OBJECT_SIZE}_UPLOAD"
   local UPLOAD_RESULTS_FILE_PROCESSED="${UPLOAD_RESULTS_FILE}_PROCESSED"
   /usr/bin/aggregate_upload_throughput_benchmark \
     --labels=workload_7_upload \
@@ -131,20 +130,20 @@ workload_7() {
     --minimum-object-size="${OBJECT_SIZE}" \
     --maximum-object-size="${OBJECT_SIZE}" \
     --bucket-name="${BUCKET_NAME}" \
-    --object-prefix="${OBJECT_PREFIX}-${API}-${OBJECT_SIZE}" \
+    --object-prefix="${UPLOAD_OBJECT_PREFIX}" \
     --iteration-count="${SAMPLES}" > "${UPLOAD_RESULTS_FILE}"
   cat "${UPLOAD_RESULTS_FILE}" | \
       grep -v "#.*" > "${UPLOAD_RESULTS_FILE_PROCESSED}"
   tail -n +2 "${UPLOAD_RESULTS_FILE_PROCESSED}" | awk -F, '{print "throughput{workload="$2",Iteration="$1",ObjectCount="$3",ResumableUploadChunkSize="$4",ThreadCount="$5",Api="$6",GrpcChannelCount="$7",GrpcPluginConfig="$8",RestHttpVersion="$9",ClientPerThread="$10",StatusCode="$11",Peer="$12",BytesUploaded="$13",ElapsedMicroseconds="$14",IterationBytes="$15",IterationElapsedMicroseconds="$16",IterationCpuMicroseconds="$17"} "(($13/1024/1024)/($14/1000000))}'
 
-  local DOWNLOAD_BIGQUERY_TABLE="${WORKLOAD}_${API}_download"
-  local DOWNLOAD_RESULTS_FILE="${WORKLOAD}_${API}_${OBJECT_SIZE}_download"
+  local DOWNLOAD_OBJECT_PREFIX="test-object-$(date +'%s%N')-${API}-${OBJECT_SIZE}"
+  local DOWNLOAD_RESULTS_FILE="${WORKLOAD}_${API}_${OBJECT_SIZE}_DOWNLOAD"
   local DOWNLOAD_RESULTS_FILE_PROCESSED="${DOWNLOAD_RESULTS_FILE}_PROCESSED"
   /usr/bin/aggregate_download_throughput_benchmark \
     --labels=workload_7_download \
     --api="${API}" \
     --bucket-name="${BUCKET_NAME}" \
-    --object-prefix="${OBJECT_PREFIX}-${API}-${OBJECT_SIZE}" \
+    --object-prefix="${DOWNLOAD_OBJECT_PREFIX}" \
     --iteration-count="${SAMPLES}" > "${DOWNLOAD_RESULTS_FILE}"
   cat "${DOWNLOAD_RESULTS_FILE}" | \
       grep -v "#.*" > "${DOWNLOAD_RESULTS_FILE_PROCESSED}"
