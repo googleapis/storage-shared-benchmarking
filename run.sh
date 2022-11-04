@@ -1,4 +1,8 @@
 #!/bin/bash
+# e: will cause the script to fail if any program it calls fails
+# u: will cause the script to fail if any variable is used but it is not defined
+# o pipefail will cause the script to fail if the pipe fails
+set -euo pipefail
 
 # Copyright 2022 Google LLC
 #
@@ -14,20 +18,90 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Parameters
-WORKLOAD="${1}"
-PROJECT="${2}"
-BUCKET_NAME="${3}"
-BIGQUERY_DATASET="${4}"
-API="${5}"
-OBJECT_SIZE="${6}"
-SAMPLES="${7}"
-WORKERS="${8}"
+function print_usage() {
+  cat <<_EOM_
+Usage: run.sh [options]
+  Options:
+    -h|--help                   Print this help message
+    --workload1=<lang>          Run workload 1 for <lang>
+    --workload7                 Run workload 7
+    --project=<project>         Use <project> as project to use for workloads
+    --bucket=<bucket>           Use <bucket> as bucket to use for workloads
+    --dataset=<dataset>         Use <dataset> for to write data into
+    --api=<api>                 Use <api> when executing workloads
+    --samples=<samples>         Number of samples to report
+    --workers=<workers>         Number of workers to use when running workload
+    --object_size=<object_size> Object size to use when running workload
+_EOM_
+}
+
+PARSED="$(getopt -a \
+  --options="h" \
+  --longoptions="help,workload_1:,workload_7,project:,bucket:,dataset:,api:,samples:,object_size:,samples:,workers:" \
+  --name="run.sh" \
+  -- "$@")"
+eval set -- "${PARSED}"
+WORKLOAD=
+PROJECT=
+BUCKET_NAME=
+BIGQUERY_DATASET=
+API=
+OBJECT_SIZE=
+SAMPLES=
+WORKERS=
+while true; do
+  case "$1" in
+    -h | --help)
+      print_usage
+      exit 0
+      ;;
+    --workload1)
+      WORKLOAD="workload_1_$2"
+      shift 2
+      ;;
+    --workload7)
+      WORKLOAD="workload_7"
+      shift 1
+      ;;
+    --project)
+      PROJECT="$2"
+      shift 2
+      ;;
+    --bucket)
+      BUCKET_NAME="$2"
+      shift 2
+      ;;
+    --dataset)
+      BIGQUERY_DATASET="$2"
+      shift 2
+      ;;
+    --api)
+      API="$2"
+      shift 2
+      ;;
+    --object_size)
+      OBJECT_SIZE="$2"
+      shift 2
+      ;;
+    --samples)
+      SAMPLES="$2"
+      shift 2
+      ;;
+    --workers)
+      WORKERS="$2"
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+  esac
+done
 
 workload_1_golang() {
-  SALT="$(date +'%s%N')"
-  BIGQUERY_TABLE="${WORKLOAD}"
-  RESULTS_FILE="${WORKLOAD}_results_${API}_${SALT}.csv"
+  local SALT="$(date +'%s%N')"
+  local BIGQUERY_TABLE="${WORKLOAD}"
+  local RESULTS_FILE="${WORKLOAD}_results_${API}_${SALT}.csv"
   golang_benchmark_cli -p "${PROJECT}" \
                        -bucket "${BUCKET_NAME}" \
                        -defaults \
@@ -46,23 +120,14 @@ workload_1_golang() {
 }
 
 workload_7() {
-  OBJECT_PREFIX="test-object-$(date +'%s%N')"
-  # Run benchmarks
-  /usr/bin/create_dataset \
-    --bucket-name="${BUCKET_NAME}" \
-    --object-prefix="${OBJECT_PREFIX}-${API}-${OBJECT_SIZE}" \
-    --minimum-object-size="${OBJECT_SIZE}" \
-    --maximum-object-size="${OBJECT_SIZE}" \
-    --object-count=1 \
-    --thread-count=1
-  UPLOAD_BIGQUERY_TABLE="${WORKLOAD}_${API}_upload"
-  UPLOAD_RESULTS_FILE="${WORKLOAD}_${API}_${OBJECT_SIZE}_upload"
-  UPLOAD_RESULTS_FILE_PROCESSED="${UPLOAD_RESULTS_FILE}_PROCESSED"
+  local OBJECT_PREFIX="test-object-$(date +'%s%N')"
+  local UPLOAD_BIGQUERY_TABLE="${WORKLOAD}_${API}_upload"
+  local UPLOAD_RESULTS_FILE="${WORKLOAD}_${API}_${OBJECT_SIZE}_upload"
+  local UPLOAD_RESULTS_FILE_PROCESSED="${UPLOAD_RESULTS_FILE}_PROCESSED"
   /usr/bin/aggregate_upload_throughput_benchmark \
-    --labels=workload_7 \
+    --labels=workload_7_upload \
     --api="${API}" \
     --object-count=1 \
-    --client-per-thread=1 \
     --minimum-object-size="${OBJECT_SIZE}" \
     --maximum-object-size="${OBJECT_SIZE}" \
     --bucket-name="${BUCKET_NAME}" \
@@ -70,22 +135,20 @@ workload_7() {
     --iteration-count="${SAMPLES}" > "${UPLOAD_RESULTS_FILE}"
   cat "${UPLOAD_RESULTS_FILE}" | \
       grep -v "#.*" > "${UPLOAD_RESULTS_FILE_PROCESSED}"
-  bq_cli -p "${PROJECT}" -d "${BIGQUERY_DATASET}" -t "${UPLOAD_BIGQUERY_TABLE}" -f "${UPLOAD_RESULTS_FILE_PROCESSED}"
-  DOWNLOAD_BIGQUERY_TABLE="${WORKLOAD}_${API}_download"
-  DOWNLOAD_RESULTS_FILE="${WORKLOAD}_${API}_${OBJECT_SIZE}_download"
-  DOWNLOAD_RESULTS_FILE_PROCESSED="${DOWNLOAD_RESULTS_FILE}_PROCESSED"
+  tail -n +2 "${UPLOAD_RESULTS_FILE_PROCESSED}" | awk -F, '{print "throughput{workload="$2",Iteration="$1",ObjectCount="$3",ResumableUploadChunkSize="$4",ThreadCount="$5",Api="$6",GrpcChannelCount="$7",GrpcPluginConfig="$8",RestHttpVersion="$9",ClientPerThread="$10",StatusCode="$11",Peer="$12",BytesUploaded="$13",ElapsedMicroseconds="$14",IterationBytes="$15",IterationElapsedMicroseconds="$16",IterationCpuMicroseconds="$17"} "(($13/1024/1024)/($14/1000000))}'
+
+  local DOWNLOAD_BIGQUERY_TABLE="${WORKLOAD}_${API}_download"
+  local DOWNLOAD_RESULTS_FILE="${WORKLOAD}_${API}_${OBJECT_SIZE}_download"
+  local DOWNLOAD_RESULTS_FILE_PROCESSED="${DOWNLOAD_RESULTS_FILE}_PROCESSED"
   /usr/bin/aggregate_download_throughput_benchmark \
-    --labels=workload_7 \
+    --labels=workload_7_download \
     --api="${API}" \
-    --client-per-thread=1 \
-    --read-size="${OBJECT_SIZE}" \
-    --read-buffer-size="${OBJECT_SIZE}" \
     --bucket-name="${BUCKET_NAME}" \
     --object-prefix="${OBJECT_PREFIX}-${API}-${OBJECT_SIZE}" \
     --iteration-count="${SAMPLES}" > "${DOWNLOAD_RESULTS_FILE}"
   cat "${DOWNLOAD_RESULTS_FILE}" | \
       grep -v "#.*" > "${DOWNLOAD_RESULTS_FILE_PROCESSED}"
-  bq_cli -p "${PROJECT}" -d "${BIGQUERY_DATASET}" -t "${DOWNLOAD_BIGQUERY_TABLE}" -f "${DOWNLOAD_RESULTS_FILE_PROCESSED}"
+  tail -n +2 "${DOWNLOAD_RESULTS_FILE_PROCESSED}" | awk -F, '{print "throughput{workload="$1",Iteration="$2",ObjectCount="$3",DatasetSize="$4",ThreadCount="$5",RepeatsPerIteration="$6",ReadSize="$7",ReadBufferSize="$8",Api="$9",GrpcChannelCount="$10",GrpcPluginConfig="$11",ClientPerThread="$12",StatusCode="$13",Peer="$14",BytesDownloaded="$15",ElapsedMicroseconds="$16",IterationBytes="$17",IterationElapsedMicroseconds="$18",IterationCpuMicroseconds="$19"} "(($4/1024/1024)/($16/1000000))}'
 }
 
 # Perform workload
