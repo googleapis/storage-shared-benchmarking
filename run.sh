@@ -126,9 +126,7 @@ workload_7() {
     --minimum-sample-count="${SAMPLES}" \
     --maximum-sample-count="${SAMPLES}" \
     --upload-functions="${UPLOAD_FUNCTION}" | \
-    grep  -v "^#" | \
-    tail -n +2 | \
-    awk -F, '{print "throughput{library="$3",api="$4",op="$5",object_size="$6",transfer_offset="$7",transfer_size="$8",app_buffer_size="$9",crc32c_enabled="$10",md5_enabled="$11",elapsed_time_us="$12",cpu_time_us="$13",peer="$14",bucket_name="$15",object_name="$16",generation="$17",upload_id="$18",retry_count="$19",status_code="$20"} "(($6/1024/1024)/($12/1000000))}'
+    workload_7_output.awk
 }
 
 # Perform workload
