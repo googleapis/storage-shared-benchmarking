@@ -164,21 +164,21 @@ def run_workload_7_post_processing(_):
     raw_timeseries_data = []
     for api in ["XML", "JSON"]:
         for upload_type in ["InsertObject", "WriteObject"]:
-          for size in [
-              8 * 1024,
-              256 * 1024,
-              1024 * 1024,
-              1024 * 1024 * 16,
-              1024 * 1024 * 128,
-              1024 * 1024 * 1024,
-          ]:
-              raw_timeseries_data.extend(
-                  get_timeseries_last_24h(
-                      monitoring_client,
-                      project_name,
-                      f"custom.googleapis.com/cloudprober/external/workload_7_{api}_{size}_{upload_type}/throughput",
-                  )
-              )
+            for size in [
+                8 * 1024,
+                256 * 1024,
+                1024 * 1024,
+                1024 * 1024 * 16,
+                1024 * 1024 * 128,
+                1024 * 1024 * 1024,
+            ]:
+                raw_timeseries_data.extend(
+                    get_timeseries_last_24h(
+                        monitoring_client,
+                        project_name,
+                        f"custom.googleapis.com/cloudprober/external/workload_7_{api}_{size}_{upload_type}/throughput",
+                    )
+                )
     df = convert_timeseries_to_dataframe(raw_timeseries_data)
     result = apply_compare_mibs(df)
     power_info = power_check(df)
