@@ -42,6 +42,8 @@ PARSED="$(getopt -a \
   --name="run.sh" \
   -- "$@")"
 eval set -- "${PARSED}"
+# Get absolute path to this script to call relative files
+ROOT_PATH=$(dirname $(readlink -f "${BASH_SOURCE:-$0}"))
 WORKLOAD=
 PROJECT=
 BUCKET_NAME=
@@ -117,7 +119,7 @@ workload_1_golang() {
 }
 
 workload_7() {
-  /usr/bin/storage_throughput_vs_cpu_benchmark \
+  storage_throughput_vs_cpu_benchmark \
     --minimum-object-size="${OBJECT_SIZE}" \
     --maximum-object-size="${OBJECT_SIZE}" \
     --region="${REGION}" \
@@ -126,7 +128,7 @@ workload_7() {
     --minimum-sample-count="${SAMPLES}" \
     --maximum-sample-count="${SAMPLES}" \
     --upload-functions="${UPLOAD_FUNCTION}" | \
-    workload_7_output.awk
+    $ROOT_PATH/workload_7_output.awk
 }
 
 # Perform workload
