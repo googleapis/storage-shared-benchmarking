@@ -27,28 +27,32 @@ Usage: run.sh [options]
     --workload_7                 Run workload 7
     --project=<project>         Use <project> as project to use for workloads
     --bucket=<bucket>           Use <bucket> as bucket to use for workloads
-    --dataset=<dataset>         Use <dataset> for to write data into
     --api=<api>                 Use <api> when executing workloads
     --samples=<samples>         Number of samples to report
     --workers=<workers>         Number of workers to use when running workload
     --object_size=<object_size> Object size to use when running workload
+    --region=<region>           Region used by workload7
+    --upload_function=<fn>      Upload function name used by workload7
 _EOM_
 }
 
 PARSED="$(getopt -a \
   --options="h" \
-  --longoptions="help,workload_1:,workload_7,project:,bucket:,dataset:,api:,samples:,object_size:,samples:,workers:" \
+  --longoptions="help,workload_1:,workload_7,project:,bucket:,api:,samples:,object_size:,samples:,workers:,region:,upload_function:" \
   --name="run.sh" \
   -- "$@")"
 eval set -- "${PARSED}"
+# Get absolute path to this script to call relative files
+ROOT_PATH=$(dirname $(readlink -f "${BASH_SOURCE:-$0}"))
 WORKLOAD=
 PROJECT=
 BUCKET_NAME=
-BIGQUERY_DATASET=
 API=
 OBJECT_SIZE=
 SAMPLES=
 WORKERS=
+REGION=
+UPLOAD_FUNCTION=
 while true; do
   case "$1" in
     -h | --help)
@@ -71,10 +75,6 @@ while true; do
       BUCKET_NAME="$2"
       shift 2
       ;;
-    --dataset)
-      BIGQUERY_DATASET="$2"
-      shift 2
-      ;;
     --api)
       API="$2"
       shift 2
@@ -91,6 +91,14 @@ while true; do
       WORKERS="$2"
       shift 2
       ;;
+    --region)
+      REGION="$2"
+      shift 2
+      ;;
+    --upload_function)
+      UPLOAD_FUNCTION="$2"
+      shift 2
+      ;;
     --)
       shift
       break
@@ -99,64 +107,27 @@ while true; do
 done
 
 workload_1_golang() {
-  local SALT="$(date +'%s%N')"
-  local BIGQUERY_TABLE="${WORKLOAD}"
-  local RESULTS_FILE="${WORKLOAD}_results_${API}_${SALT}.csv"
   golang_benchmark_cli -p "${PROJECT}" \
                        -bucket "${BUCKET_NAME}" \
-                       -defaults \
                        -workers "${WORKERS}" \
                        -min_samples "${SAMPLES}" \
                        -max_samples "${SAMPLES}" \
                        -min_size "${OBJECT_SIZE}" \
                        -max_size "${OBJECT_SIZE}" \
-                       -api "${API}" \
-                       -o "${RESULTS_FILE}"
-
-  bq_cli -p "${PROJECT}" \
-         -d "${BIGQUERY_DATASET}" \
-         -t "${BIGQUERY_TABLE}" \
-         -f "${RESULTS_FILE}"
+                       -api "${API}"
 }
 
 workload_7() {
-  local UPLOAD_OBJECT_PREFIX="test-object-$(date +'%s%N')-${API}-${OBJECT_SIZE}"
-  local UPLOAD_RESULTS_FILE="${WORKLOAD}_${API}_${OBJECT_SIZE}_UPLOAD"
-  local UPLOAD_RESULTS_FILE_PROCESSED="${UPLOAD_RESULTS_FILE}_PROCESSED"
-  /usr/bin/aggregate_upload_throughput_benchmark \
-    --labels=workload_7_upload \
-    --api="${API}" \
-    --object-count=1 \
+  storage_throughput_vs_cpu_benchmark \
     --minimum-object-size="${OBJECT_SIZE}" \
     --maximum-object-size="${OBJECT_SIZE}" \
-    --bucket-name="${BUCKET_NAME}" \
-    --object-prefix="${UPLOAD_OBJECT_PREFIX}" \
-    --iteration-count="${SAMPLES}" > "${UPLOAD_RESULTS_FILE}"
-  cat "${UPLOAD_RESULTS_FILE}" | \
-      grep -v "#.*" > "${UPLOAD_RESULTS_FILE_PROCESSED}"
-  tail -n +2 "${UPLOAD_RESULTS_FILE_PROCESSED}" | awk -F, '{print "throughput{workload="$2",Iteration="$1",ObjectCount="$3",ResumableUploadChunkSize="$4",ThreadCount="$5",Api="$6",GrpcChannelCount="$7",GrpcPluginConfig="$8",RestHttpVersion="$9",ClientPerThread="$10",StatusCode="$11",Peer="$12",BytesUploaded="$13",ElapsedMicroseconds="$14",IterationBytes="$15",IterationElapsedMicroseconds="$16",IterationCpuMicroseconds="$17"} "(($13/1024/1024)/($14/1000000))}'
-  rm "${UPLOAD_RESULTS_FILE_PROCESSED}" "${UPLOAD_RESULTS_FILE}"
-
-  local DOWNLOAD_OBJECT_PREFIX="test-object-$(date +'%s%N')-${API}-${OBJECT_SIZE}"
-  local DOWNLOAD_RESULTS_FILE="${WORKLOAD}_${API}_${OBJECT_SIZE}_DOWNLOAD"
-  local DOWNLOAD_RESULTS_FILE_PROCESSED="${DOWNLOAD_RESULTS_FILE}_PROCESSED"
-  /usr/bin/create_dataset \
-    --bucket-name="${BUCKET_NAME}" \
-    --object-prefix="${DOWNLOAD_OBJECT_PREFIX}" \
-    --minimum-object-size="${OBJECT_SIZE}" \
-    --maximum-object-size="${OBJECT_SIZE}" \
-    --object-count=1 \
-    --thread-count=1 > /dev/null
-  /usr/bin/aggregate_download_throughput_benchmark \
-    --labels=workload_7_download \
-    --api="${API}" \
-    --bucket-name="${BUCKET_NAME}" \
-    --object-prefix="${DOWNLOAD_OBJECT_PREFIX}" \
-    --iteration-count="${SAMPLES}" > "${DOWNLOAD_RESULTS_FILE}"
-  cat "${DOWNLOAD_RESULTS_FILE}" | \
-      grep -v "#.*" > "${DOWNLOAD_RESULTS_FILE_PROCESSED}"
-  tail -n +2 "${DOWNLOAD_RESULTS_FILE_PROCESSED}" | awk -F, '{print "throughput{workload="$1",Iteration="$2",ObjectCount="$3",DatasetSize="$4",ThreadCount="$5",RepeatsPerIteration="$6",ReadSize="$7",ReadBufferSize="$8",Api="$9",GrpcChannelCount="$10",GrpcPluginConfig="$11",ClientPerThread="$12",StatusCode="$13",Peer="$14",BytesDownloaded="$15",ElapsedMicroseconds="$16",IterationBytes="$17",IterationElapsedMicroseconds="$18",IterationCpuMicroseconds="$19"} "(($4/1024/1024)/($16/1000000))}'
-  rm "${DOWNLOAD_RESULTS_FILE_PROCESSED}" "${DOWNLOAD_RESULTS_FILE}"
+    --region="${REGION}" \
+    --project-id="${PROJECT}" \
+    --enabled-transports="${API}" \
+    --minimum-sample-count="${SAMPLES}" \
+    --maximum-sample-count="${SAMPLES}" \
+    --upload-functions="${UPLOAD_FUNCTION}" | \
+    $ROOT_PATH/workload_7_output.awk
 }
 
 # Perform workload
