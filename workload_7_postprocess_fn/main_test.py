@@ -93,19 +93,24 @@ def test_convert_timeseries_to_dataframe():
 
 def test_compare_mibs_null_hypothesis_distributions():
     # Generate a random with different mean distributions
-    # That distributions are not the same
-    dataframe = __generate_datapoints(5, 2.5, "Xml", 1000)
-    dataframe.extend(__generate_datapoints(100, 2.5, "Json", 1000))
-    result = compare_mibs(pd.DataFrame.from_records(dataframe))
-    assert result == True
-
-
-def test_compare_mibs_reject_null_hypothesis_distributions():
-    # Generate a random with same mean distributions
+    # H_0: They're equal distributions
+    # ---> H_1: They're not identical distributions
     data = __generate_datapoints(5, 2.5, "Xml", 1000)
     data.extend(__generate_datapoints(5, 2.5, "Json", 1000))
     dataframe = pd.DataFrame.from_records(data)
-    assert compare_mibs(dataframe) == False
+    result = compare_mibs(dataframe)
+    assert result == False
+
+
+def test_compare_mibs_two_sided_hypothesis_distributions():
+    # Generate a random with same mean distributions
+    # ---> H_0: They're equal distributions
+    # H_1: They're not identical distributions
+    data = __generate_datapoints(5, 2.5, "Xml", 1000)
+    data.extend(__generate_datapoints(100, 2.5, "Json", 1000))
+    dataframe = pd.DataFrame.from_records(data)
+    result = compare_mibs(dataframe)
+    assert result == True
 
 
 def test_power_check_enough_samples():

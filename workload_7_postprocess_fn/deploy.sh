@@ -23,6 +23,7 @@ REGION="us-central1"
 FUNCTION_NAME="workload-7-postprocess"
 gcloud functions -q deploy "${FUNCTION_NAME}"  \
        --gen2 \
+       --set-env-vars GCP_PROJECT=storage-sdk-prober-project \
        --runtime python310 \
        --trigger-http \
        --entry-point "run_workload_7_post_processing" \
@@ -45,9 +46,7 @@ DEFAULT_SERVICE_ACCOUNT=$(gcloud functions describe "${FUNCTION_NAME}" | \
        grep "serviceAccountEmail: " |
        awk -F': ' '{print $2}')
 
-SCHEDULER_NAME=workload_7_postprocess_trigger_test
-
-gcloud scheduler jobs delete -q --location "${REGION}" "${SCHEDULER_NAME}" || true
+SCHEDULER_NAME=workload_7_postprocess_trigger
 gcloud scheduler jobs create -q http "${SCHEDULER_NAME}" \
   --location "${REGION}" \
   --schedule "0 0 * * 0-7" \
