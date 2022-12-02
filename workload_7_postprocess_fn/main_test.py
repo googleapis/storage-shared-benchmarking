@@ -114,6 +114,10 @@ def test_power_check_enough_samples():
     data.extend(__generate_datapoints(5, 2.5, "Json", 1000))
     dataframe = pd.DataFrame.from_records(data)
     actual_results = power_check(dataframe)
+    # The following expected results are generated first through
+    # actual_results and verified to have the structure expected output.
+    # In the future if we want to update this structure; we will want to
+    # print(actual_results) then inline them here.
     expected_results = {
         ("WRITE", "1", "1"): {
             "needed_samples": "9",

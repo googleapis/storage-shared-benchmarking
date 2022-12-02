@@ -38,6 +38,7 @@ HASH_TUPLE_LIST = [("1", "1"), ("0", "1"), ("1", "0"), ("0", "0")]
 
 def compare_mibs(df, a="Json", b="Xml", alpha=0.001):
     # Notes: Mannwhitneyu is able to apply the test across each subworkload
+    # Null Hypothesis: Are they different distributions?
     _, p = sp.stats.mannwhitneyu(
         df[df.ApiName == a].MiBs, df[df.ApiName == b].MiBs, alternative="two-sided"
     )

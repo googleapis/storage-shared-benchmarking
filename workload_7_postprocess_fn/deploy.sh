@@ -1,9 +1,4 @@
 #!/bin/bash
-# e: will cause the script to fail if any program it calls fails
-# u: will cause the script to fail if any variable is used but it is not defined
-# o pipefail will cause the script to fail if the pipe fails
-set -euo pipefail
-
 # Copyright 2022 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +13,11 @@ set -euo pipefail
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# e: will cause the script to fail if any program it calls fails
+# u: will cause the script to fail if any variable is used but it is not defined
+# o pipefail will cause the script to fail if the pipe fails
+set -euo pipefail
+
 gcloud services -q enable cloudscheduler.googleapis.com cloudfunctions.googleapis.com
 REGION="us-central1"
 FUNCTION_NAME="workload-7-postprocess"
@@ -31,10 +31,16 @@ gcloud functions -q deploy "${FUNCTION_NAME}"  \
        --source=. \
        --timeout 600
 
+# Extract URI to function from gcloud describe
+# \turi: https://workload-id.a.run.app
+# $2 is the second element after spliting by ": "
 URI=$(gcloud functions describe "${FUNCTION_NAME}" | \
        grep "uri: " |
        awk -F': ' '{print $2}')
 
+# Extract default service account from gcloud
+# \tserviceAccountEmail: PROJECT-NUMBER-compute@developer.gserviceaccount.com
+# $2 is the second element after spliting by ": "
 DEFAULT_SERVICE_ACCOUNT=$(gcloud functions describe "${FUNCTION_NAME}" | \
        grep "serviceAccountEmail: " |
        awk -F': ' '{print $2}')
