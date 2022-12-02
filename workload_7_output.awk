@@ -14,7 +14,7 @@
 # limitations under the License.
 
 BEGIN {
-  IS_DATA="^202.*";
+  IS_DATA="^202[0-9]-[[:digit:]]{2}-[[:digit:]]{2}";
   FS=",";
   MIB=1048576;
   US_TO_S=1000000;
@@ -23,6 +23,12 @@ BEGIN {
   # Only select lines that start with 202
   if (match($0, IS_DATA)) {
     THROUGHPUT=($6/MIB)/($12/US_TO_S);
-    print "throughput{library="$3",api="$4",op="$5",object_size="$6",transfer_offset="$7",transfer_size="$8",app_buffer_size="$9",crc32c_enabled="$10",md5_enabled="$11",elapsed_time_us="$12",cpu_time_us="$13",peer="$14",bucket_name="$15",object_name="$16",generation="$17",upload_id="$18",retry_count="$19",status_code="$20"}",THROUGHPUT
+    printf("throughput{library="$3);
+    printf(",api="$4",op="$5",object_size="$6",transfer_offset="$7);
+    printf(",transfer_size="$8",app_buffer_size="$9",crc32c_enabled="$10);
+    printf(",md5_enabled="$11",elapsed_time_us="$12",cpu_time_us="$13);
+    printf(",peer="$14",bucket_name="$15",object_name="$16);
+    printf(",generation="$17",upload_id="$18",retry_count="$19);
+    print(",status_code="$20"}",THROUGHPUT);
   }
 }
