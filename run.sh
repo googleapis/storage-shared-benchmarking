@@ -109,7 +109,6 @@ done
 workload_1_golang() {
   golang_benchmark_cli -p "${PROJECT}" \
                        -bucket "${BUCKET_NAME}" \
-                       -defaults \
                        -workers "${WORKERS}" \
                        -min_samples "${SAMPLES}" \
                        -max_samples "${SAMPLES}" \
