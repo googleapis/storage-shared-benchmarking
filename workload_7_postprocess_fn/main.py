@@ -37,7 +37,7 @@ HASH_TUPLE_LIST = [("1", "1"), ("0", "1"), ("1", "0"), ("0", "0")]
 
 
 def compare_mibs(df, a="Json", b="Xml", alpha=0.001):
-    # alpha=0.001 selected by coryan@ as more regirous than commonly used 0.05
+    # alpha=0.001 more regirous than commonly used 0.05
     # Notes: Mannwhitneyu is able to apply the test across each subworkload
     # H_0: They're equal distributions
     # H_1: They're not equal distributions
@@ -167,7 +167,7 @@ def run_workload_7_post_processing(_):
     project_name = os.environ["GCP_PROJECT"]
     monitoring_client = monitoring_v3.MetricServiceClient()
     raw_timeseries_data = []
-    for api in ["XML", "JSON"]:
+    for api in ["Xml", "Json"]:
         for upload_type in ["InsertObject", "WriteObject"]:
             for size in [
                 8 * 1024,
@@ -187,5 +187,5 @@ def run_workload_7_post_processing(_):
     df = convert_timeseries_to_dataframe(raw_timeseries_data)
     result = apply_compare_mibs(df)
     power_info = power_check(df)
-    write_stat_result(client, project_name, result, power_info)
+    write_stat_result(monitoring_client, project_name, result, power_info)
     return "ok"

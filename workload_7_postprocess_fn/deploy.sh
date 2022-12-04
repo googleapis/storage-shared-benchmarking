@@ -47,7 +47,8 @@ DEFAULT_SERVICE_ACCOUNT=$(gcloud functions describe "${FUNCTION_NAME}" | \
        awk -F': ' '{print $2}')
 
 SCHEDULER_NAME=workload_7_postprocess_trigger
-gcloud scheduler jobs create -q http "${SCHEDULER_NAME}" \
+gcloud scheduler jobs delete --location="${REGION}" -q "${SCHEDULER_NAME}" || true
+gcloud scheduler jobs create http "${SCHEDULER_NAME}" \
   --location "${REGION}" \
   --schedule "0 0 * * 0-7" \
   --http-method "post" \
