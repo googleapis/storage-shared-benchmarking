@@ -25,15 +25,20 @@ import scipy as sp
 # Subworkloads:
 # INSERT using InsertObject (Multipart Upload)
 # WRITE using WriteObject  (Resumable Upload)
-# READ method doesn't matter between XML / JSON
+# READ used by both XML and JSON
+# RANGE special label to identify range reads in both XML and JSON
 WORKLOADS_LIST = [
     "WRITE",
     "INSERT",
     "READ[0]",
     "READ[1]",
     "READ[2]",
+    "RANGE[0]",
+    "RANGE[1]",
+    "RANGE[2]",
 ]
-HASH_TUPLE_LIST = [("1", "1"), ("0", "1"), ("1", "0"), ("0", "0")]
+HASH_LIST = [{"crc32c": True, "md5": False}, {"crc32c": False, "md5": False}]
+DAY_IN_SECONDS = 86400
 
 
 def compare_mibs(df, a="Json", b="Xml", alpha=0.001):
@@ -50,58 +55,45 @@ def compare_mibs(df, a="Json", b="Xml", alpha=0.001):
 
 
 def power_check(df):
-    power_results = {}
-    # Notes: We need to filter by subworkload before running power analysis
-    for op in WORKLOADS_LIST:
-        for hash_tuple in HASH_TUPLE_LIST:
-            filtered_df = df[
-                (df.Op == op)
-                & (df.Crc32cEnabled == hash_tuple[0])
-                & (df.MD5Enabled == hash_tuple[1])
-            ]
-            std = (
-                filtered_df.groupby(["ApiName"], group_keys=True)
-                .MiBs.apply(np.std)
-                .max()
-            )
-            effect = 5 / std
-            p = pwr.TTestIndPower()
-            needed_samples = round(
-                p.solve_power(effect_size=effect, alpha=0.01, power=0.90)
-            )
-            sample_count = len(filtered_df.index)
-            enough_samples = sample_count >= needed_samples
-            idx = (op, hash_tuple[0], hash_tuple[1])
-            power_results[idx] = {
-                "needed_samples": f"{needed_samples}",
-                "sample_count": f"{sample_count}",
-                "enough_samples": f"{enough_samples}",
-            }
+    std = df.groupby(["ApiName"], group_keys=True).MiBs.apply(np.std).max()
+    effect = 5 / std
+    p = pwr.TTestIndPower()
+    needed_samples = round(p.solve_power(effect_size=effect, alpha=0.01, power=0.90))
+    sample_count = len(df.index)
+    enough_samples = sample_count >= needed_samples
+    power_results = {
+        "needed_samples": f"{needed_samples}",
+        "sample_count": f"{sample_count}",
+        "enough_samples": f"{enough_samples}",
+    }
     return power_results
 
 
-def get_timeseries_last_24h(client, project_name, metric, now=None):
-    project_name_with_path = f"projects/{project_name}"
-    interval = monitoring_v3.TimeInterval()
+def get_timeseries_last_n_seconds(
+    client, project_name, metric, lookback_seconds, op_filter=None, now=None
+):
     if now is None:
         now = time.time()
+    project_name_with_path = f"projects/{project_name}"
+    interval = monitoring_v3.TimeInterval()
     seconds = int(now)
     nanos = int((now - seconds) * 10**9)
     # Look back at yesterdays worth of data
     interval = monitoring_v3.TimeInterval(
         {
             "end_time": {"seconds": seconds, "nanos": nanos},
-            "start_time": {"seconds": (seconds - 86400), "nanos": nanos},
+            "start_time": {"seconds": (seconds - lookback_seconds), "nanos": nanos},
         }
     )
-    results = client.list_time_series(
-        request={
-            "name": project_name_with_path,
-            "filter": f'metric.type = "{metric}"',
-            "interval": interval,
-            "view": monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL,
-        }
-    )
+    request = {
+        "name": project_name_with_path,
+        "filter": f'metric.type = "{metric}"',
+        "interval": interval,
+        "view": monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL,
+    }
+    if op_filter is not None:
+        request["filter"] += f' AND metric.labels.op = starts_with("{op_filter}")'
+    results = client.list_time_series(request)
     return results
 
 
@@ -111,50 +103,76 @@ def current_interval(now=None):
     seconds = int(now)
     nanos = int((now - seconds) * 10**9)
     interval = monitoring_v3.TimeInterval(
-        {"end_time": {"seconds": seconds, "nanos": nanos}}
+        {
+            "end_time": {"seconds": seconds, "nanos": nanos},
+            "start_time": {"seconds": seconds, "nanos": nanos},
+        }
     )
     return interval
+
+
+def __str_bit_to_boolean(str_bit):
+    if str_bit == "1":
+        return True
+    return False
+
+
+def __boolean_to_str_bit(b):
+    if b:
+        return "1"
+    return "0"
 
 
 def convert_timeseries_to_dataframe(timeseries):
     processed_data = []
     for datapoint in timeseries:
-        processed_data.append(
-            {
-                "ApiName": datapoint.metric.labels["api"],
-                "Op": datapoint.metric.labels["op"],
-                "Crc32cEnabled": datapoint.metric.labels["crc32c_enabled"],
-                "MD5Enabled": datapoint.metric.labels["md5_enabled"],
-                "MiBs": datapoint.points[0].value.double_value,
-            }
-        )
+        labels = datapoint.metric.labels
+        op = labels["op"]
+        if int(labels["transfer_size"]) < int(labels["object_size"]):
+            op = op.replace("READ", "RANGE")
+        converted_datapoint = {
+            "ApiName": labels["api"],
+            "Op": op,
+            "Crc32cEnabled": __str_bit_to_boolean(labels["crc32c_enabled"]),
+            "MD5Enabled": __str_bit_to_boolean(labels["md5_enabled"]),
+            "MiBs": datapoint.points[0].value.double_value,
+        }
+        processed_data.append(converted_datapoint)
     df = pd.DataFrame.from_records(processed_data)
     return df
 
 
-def write_stat_result(client, project_name, results, power_info):
+def write_stat_result(
+    client,
+    project_name,
+    op,
+    crc32c_enabled,
+    md5_enabled,
+    result,
+    power_info,
+    interval=None,
+):
+    if interval is None:
+        interval = current_interval()
     project_name_with_path = f"projects/{project_name}"
     series = monitoring_v3.TimeSeries()
     series.metric.type = (
         "custom.googleapis.com/cloudprober/external/workload_7/stat_result"
     )
-    for op in WORKLOADS_LIST:
-        for hash_tuple in HASH_TUPLE_LIST:
-            series.metric.labels["Op"] = op
-            series.metric.labels["crc32c_enabled"] = hash_tuple[0]
-            series.metric.labels["md5_enabled"] = hash_tuple[1]
-            idx = (op, hash_tuple[0], hash_tuple[1])
-            series.metric.labels["neededSamples"] = power_info[idx]["needed_samples"]
-            series.metric.labels["sampleCount"] = power_info[idx]["sample_count"]
-            series.metric.labels["enoughSamples"] = power_info[idx]["enough_samples"]
-            point = monitoring_v3.Point(
-                {
-                    "interval": current_interval(),
-                    "value": {"bool_value": results.loc[idx]},
-                }
-            )
-            series.points = [point]
-            client.create_time_series(name=project_name_with_path, time_series=[series])
+    series.metric.labels["Op"] = op
+    series.metric.labels["crc32c_enabled"] = __boolean_to_str_bit(crc32c_enabled)
+    series.metric.labels["md5_enabled"] = __boolean_to_str_bit(md5_enabled)
+    series.metric.labels["neededSamples"] = power_info["needed_samples"]
+    series.metric.labels["sampleCount"] = power_info["sample_count"]
+    series.metric.labels["enoughSamples"] = power_info["enough_samples"]
+    point = monitoring_v3.Point(
+        {
+            "interval": interval,
+            "value": {"bool_value": result},
+        }
+    )
+    series.points = [point]
+    client.create_time_series(name=project_name_with_path, time_series=[series])
 
 
 def apply_compare_mibs(dataframe):
@@ -166,7 +184,7 @@ def run_workload_7_post_processing(_):
     # Use project of deployed GCF
     project_name = os.environ["GCP_PROJECT"]
     monitoring_client = monitoring_v3.MetricServiceClient()
-    raw_timeseries_data = []
+    timeseries_data = []
     for api in ["Xml", "Json"]:
         for upload_type in ["InsertObject", "WriteObject"]:
             for size in [
@@ -177,15 +195,51 @@ def run_workload_7_post_processing(_):
                 1024 * 1024 * 128,
                 1024 * 1024 * 1024,
             ]:
-                raw_timeseries_data.extend(
-                    get_timeseries_last_24h(
+                timeseries_data.extend(
+                    get_timeseries_last_n_seconds(
                         monitoring_client,
                         project_name,
                         f"custom.googleapis.com/cloudprober/external/workload_7_{api}_{size}_{upload_type}/throughput",
+                        DAY_IN_SECONDS,  # 24 hours in seconds
                     )
                 )
-    df = convert_timeseries_to_dataframe(raw_timeseries_data)
-    result = apply_compare_mibs(df)
-    power_info = power_check(df)
-    write_stat_result(monitoring_client, project_name, result, power_info)
+            for range_size in [
+                1024 * 16,
+                1024 * 1024 * 2,
+                1024 * 1024 * 16,
+            ]:
+                timeseries_data.extend(
+                    get_timeseries_last_n_seconds(
+                        monitoring_client,
+                        project_name,
+                        f"custom.googleapis.com/cloudprober/external/workload_7_range_{api}_{range_size}_{upload_type}/throughput",
+                        DAY_IN_SECONDS * 7,  # 7 days in seconds
+                        "READ",  # Ignore Writes
+                    )
+                )
+    full_dataframe = convert_timeseries_to_dataframe(timeseries_data)
+    interval_to_write = current_interval()
+    for op in WORKLOADS_LIST:
+        for hash_values in HASH_LIST:
+            filtered_df = full_dataframe[
+                (full_dataframe.Op == op)
+                & (full_dataframe.Crc32cEnabled == hash_values["crc32c"])
+                & (full_dataframe.MD5Enabled == hash_values["md5"])
+            ]
+            result = apply_compare_mibs(filtered_df)
+            power_info = power_check(filtered_df)
+            write_stat_result(
+                monitoring_client,
+                project_name,
+                op,
+                hash_values["crc32c"],
+                hash_values["md5"],
+                result,
+                power_info,
+                interval_to_write,
+            )
     return "ok"
+
+
+if __name__ == "__main__":
+    run_workload_7_post_processing(None)

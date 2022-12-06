@@ -18,37 +18,40 @@ from main import convert_timeseries_to_dataframe
 from main import compare_mibs
 from main import power_check
 from main import write_stat_result
-from main import get_timeseries_last_24h
+from main import get_timeseries_last_n_seconds
 from main import apply_compare_mibs
 from main import WORKLOADS_LIST
-from main import HASH_TUPLE_LIST
+from main import HASH_LIST
+from main import __str_bit_to_boolean
+from main import __boolean_to_str_bit
 from unittest.mock import Mock
 import pandas as pd
 import numpy as np
 import time
 
 
-def __generate_datapoints(mean, std, api, samples_count):
-    # Generate samples for WRITE, READ[0], READ[1], READ[2]
-    # Predictable random numbers: we want to verify expected output and expected cases possible.
-    np.random.seed(0)
-    samples = np.random.normal(
-        mean, std, size=(samples_count * len(WORKLOADS_LIST) * len(HASH_TUPLE_LIST))
-    )
+def __generate_datapoints(
+    mean,
+    std,
+    api,
+    samples_count,
+    op="INSERT",
+    crc32c_enabled=False,
+    md5_enabled=False,
+    seed=0,
+):
+    np.random.seed(seed)
+    samples = np.random.normal(mean, std, size=samples_count)
     datapoint_list = []
-    idx = 0
-    for _ in range(0, samples_count):
-        for op in WORKLOADS_LIST:
-            for hash_tuple in HASH_TUPLE_LIST:
-                new_datapoint = {
-                    "ApiName": api,
-                    "Op": op,
-                    "Crc32cEnabled": hash_tuple[0],
-                    "MD5Enabled": hash_tuple[1],
-                    "MiBs": samples[idx],
-                }
-                idx += 1
-                datapoint_list.append(new_datapoint)
+    for idx in range(0, samples_count):
+        new_datapoint = {
+            "ApiName": api,
+            "Op": op,
+            "Crc32cEnabled": crc32c_enabled,
+            "MD5Enabled": md5_enabled,
+            "MiBs": samples[idx],
+        }
+        datapoint_list.append(new_datapoint)
     return datapoint_list
 
 
@@ -56,10 +59,8 @@ def test_apply_compare_mibs():
     data = __generate_datapoints(5, 2.5, "Xml", 1000)
     data.extend(__generate_datapoints(5, 2.5, "Json", 1000))
     test_df = pd.DataFrame.from_records(data)
-    results = apply_compare_mibs(test_df)
-    for op in WORKLOADS_LIST:
-        for hash_tuple in HASH_TUPLE_LIST:
-            assert results.loc[(op, hash_tuple[0], hash_tuple[1])] == False
+    result = apply_compare_mibs(test_df)
+    assert result.loc[("INSERT", False, False)] == False
 
 
 def test_convert_timeseries_to_dataframe():
@@ -69,8 +70,10 @@ def test_convert_timeseries_to_dataframe():
     )
     series_single_datapoint.metric.labels["api"] = "Xml"
     series_single_datapoint.metric.labels["op"] = "READ[0]"
-    series_single_datapoint.metric.labels["crc32c_enabled"] = "1"
-    series_single_datapoint.metric.labels["md5_enabled"] = "0"
+    series_single_datapoint.metric.labels["transfer_size"] = "1024"
+    series_single_datapoint.metric.labels["object_size"] = "1024"
+    series_single_datapoint.metric.labels["crc32c_enabled"] = __boolean_to_str_bit(True)
+    series_single_datapoint.metric.labels["md5_enabled"] = __boolean_to_str_bit(False)
     series_single_datapoint.points = [
         monitoring_v3.Point(
             {"interval": current_interval(), "value": {"double_value": 10.0}}
@@ -82,8 +85,8 @@ def test_convert_timeseries_to_dataframe():
             {
                 "ApiName": "Xml",
                 "Op": "READ[0]",
-                "Crc32cEnabled": "1",
-                "MD5Enabled": "0",
+                "Crc32cEnabled": True,
+                "MD5Enabled": False,
                 "MiBs": 10.0,
             }
         ]
@@ -124,106 +127,9 @@ def test_power_check_enough_samples():
     # In the future if we want to update this structure; we will want to
     # print(actual_results) then inline them here.
     expected_results = {
-        ("WRITE", "1", "1"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("WRITE", "0", "1"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("WRITE", "1", "0"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("WRITE", "0", "0"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("INSERT", "1", "1"): {
-            "needed_samples": "8",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("INSERT", "0", "1"): {
-            "needed_samples": "10",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("INSERT", "1", "0"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("INSERT", "0", "0"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("READ[0]", "1", "1"): {
-            "needed_samples": "10",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("READ[0]", "0", "1"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("READ[0]", "1", "0"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("READ[0]", "0", "0"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("READ[1]", "1", "1"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("READ[1]", "0", "1"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("READ[1]", "1", "0"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("READ[1]", "0", "0"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("READ[2]", "1", "1"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("READ[2]", "0", "1"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("READ[2]", "1", "0"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
-        ("READ[2]", "0", "0"): {
-            "needed_samples": "9",
-            "sample_count": "2000",
-            "enough_samples": "True",
-        },
+        "needed_samples": "9",
+        "sample_count": "2000",
+        "enough_samples": "True",
     }
     assert actual_results == expected_results
 
@@ -233,7 +139,10 @@ def test_current_interval():
     seconds = int(now)
     nanos = int((now - seconds) * 10**9)
     expected_interval = monitoring_v3.TimeInterval(
-        {"end_time": {"seconds": seconds, "nanos": nanos}}
+        {
+            "end_time": {"seconds": seconds, "nanos": nanos},
+            "start_time": {"seconds": seconds, "nanos": nanos},
+        }
     )
     actual_interval = current_interval(now)
     assert actual_interval == expected_interval
@@ -241,23 +150,37 @@ def test_current_interval():
 
 def test_write_stat_result():
     mock_client = Mock()
-    data = __generate_datapoints(5, 2.5, "Xml", 1000)
-    data.extend(__generate_datapoints(5, 2.5, "Json", 1000))
-    dataframe = pd.DataFrame.from_records(data)
-    results = apply_compare_mibs(dataframe)
-    power_info = power_check(dataframe)
-    write_stat_result(mock_client, "test-project-id", results, power_info)
-    # Verify that data points were written one per workload
-    assert mock_client.create_time_series.call_count == (
-        len(WORKLOADS_LIST) * len(HASH_TUPLE_LIST)
+    op = "INSERT"
+    crc32c_disabled = False
+    md5_disabled = False
+    data = __generate_datapoints(5, 2.5, "Xml", 1000, op, crc32c_disabled, md5_disabled)
+    data.extend(
+        __generate_datapoints(5, 2.5, "Json", 1000, op, crc32c_disabled, md5_disabled)
     )
+    dataframe = pd.DataFrame.from_records(data)
+    result = apply_compare_mibs(dataframe)
+    power_info = power_check(dataframe)
+    write_stat_result(
+        mock_client,
+        "test-project-id",
+        op,
+        crc32c_disabled,
+        md5_disabled,
+        result,
+        power_info,
+    )
+    mock_client.create_time_series.assert_called_once()
 
 
-def test_get_timeseries_last_24h():
+def test_get_timeseries_last_n_seconds():
     mock_client = Mock()
     now = time.time()
-    series = get_timeseries_last_24h(
-        mock_client, "test-project-id", "custom.googleapis.com/metric", now
+    series = get_timeseries_last_n_seconds(
+        mock_client,
+        "test-project-id",
+        "custom.googleapis.com/metric",
+        lookback_seconds=86400,
+        now=now,
     )
     # Verify that method to call list API is made
-    mock_client.list_time_series.assert_called_once
+    mock_client.list_time_series.assert_called_once()
