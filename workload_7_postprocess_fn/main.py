@@ -168,7 +168,7 @@ def write_stat_result(
     point = monitoring_v3.Point(
         {
             "interval": interval,
-            "value": {"bool_value": result},
+            "value": {"bool_value": result.loc[(op, crc32c_enabled, md5_enabled)]},
         }
     )
     series.points = [point]
