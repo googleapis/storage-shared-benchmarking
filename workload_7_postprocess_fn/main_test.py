@@ -70,8 +70,9 @@ def test_convert_timeseries_to_dataframe():
     )
     series_single_datapoint.metric.labels["api"] = "Xml"
     series_single_datapoint.metric.labels["op"] = "READ[0]"
-    series_single_datapoint.metric.labels["transfer_size"] = "1024"
-    series_single_datapoint.metric.labels["object_size"] = "1024"
+    series_single_datapoint.metric.labels["transfer_size"] = "1073741824"
+    series_single_datapoint.metric.labels["object_size"] = "1073741824"
+    series_single_datapoint.metric.labels["elapsed_time_us"] = "1000000"
     series_single_datapoint.metric.labels["crc32c_enabled"] = __boolean_to_str_bit(True)
     series_single_datapoint.metric.labels["md5_enabled"] = __boolean_to_str_bit(False)
     series_single_datapoint.points = [
@@ -87,7 +88,7 @@ def test_convert_timeseries_to_dataframe():
                 "Op": "READ[0]",
                 "Crc32cEnabled": True,
                 "MD5Enabled": False,
-                "MiBs": 10.0,
+                "MiBs": 1024.0,
             }
         ]
     )
