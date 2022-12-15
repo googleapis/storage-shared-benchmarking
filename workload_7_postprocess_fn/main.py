@@ -135,7 +135,7 @@ def convert_timeseries_to_dataframe(timeseries):
             "Op": op,
             "Crc32cEnabled": __str_bit_to_boolean(labels["crc32c_enabled"]),
             "MD5Enabled": __str_bit_to_boolean(labels["md5_enabled"]),
-            "MiBs": datapoint.points[0].value.double_value,
+            "MiBs": (int(labels["transfer_size"])/1048576)/(int(labels["elapsed_time_us"])/1000000),
         }
         processed_data.append(converted_datapoint)
     df = pd.DataFrame.from_records(processed_data)
@@ -213,7 +213,7 @@ def run_workload_7_post_processing(_):
                         monitoring_client,
                         project_name,
                         f"custom.googleapis.com/cloudprober/external/workload_7_range_{api}_{range_size}_{upload_type}/throughput",
-                        DAY_IN_SECONDS * 7,  # 7 days in seconds
+                        DAY_IN_SECONDS,
                         "READ",  # Ignore Writes
                     )
                 )
