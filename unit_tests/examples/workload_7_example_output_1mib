@@ -1,0 +1,33 @@
+# Start time: 2022-11-20T22:29:56.046823565Z
+# Labels: zone:us-central1-a,machine-type:n2-standard-64,instance-name:test,instance-id:5314231663513101774,project-id:spec-test-ruby-samples,project-number:787021104993
+# Running test on bucket: cloud-cpp-testing-bm-2022-11-20_vjjybl7t69zj8xzvq
+# Region: us-central1
+# Duration: 15m
+# Thread Count: 1
+# Client Per Thread: 0
+# Object Size Range: [1048576,1048576]
+# Write Buffer Size Range: [16777216,67108864]
+# Write Buffer Size Quantum: 262144
+# Read Buffer Size Range: [4194304,8388608]
+# Read Buffer Size Quantum: 1048576
+# Minimum Sample Count: 1
+# Maximum Sample Count: 1
+# Enabled Libs: CppClient
+# Enabled Transports: Xml
+# Enabled CRC32C: false,true
+# Enabled MD5: false,true
+# Minimum Sample Delay: 0
+# Direct Path Grpc Endpoint:
+# Read Offset Range: [not set]
+# Read Offset Quantum: 131072
+# Read Size Range: [not set]
+# Read Size Quantum: 131072
+# Build info: v2.4.0;GNU 7.5.0;bazel:opt -U_FORTIFY_SOURCE -fstack-protector -Wall -Wunused-but-set-parameter -Wno-free-nonheap-object -fno-omit-frame-pointer -g0 -O2 -D_FORTIFY_SOURCE=1 -DNDEBUG -ffunction-sections -fdata-sections -std=c++0x -std=c++14 -fno-canonical-system-headers -Wno-builtin-macro-redefined -D__DATE__="redacted" -D__TIMESTAMP__="redacted" -D__TIME__="redacted"
+Start,Labels,Library,Transport,Op,ObjectSize,TransferOffset,TransferSize,AppBufferSize,Crc32cEnabled,MD5Enabled,ElapsedTimeUs,CpuTimeUs,Peer,BucketName,ObjectName,Generation,UploadId,RetryCount,StatusCode,Status
+2022-11-20T22:29:57.329554577Z,zone:us-central1-a;machine-type:n2-standard-64;instance-name:test;instance-id:5314231663513101774;project-id:spec-test-ruby-samples;project-number:787021104993,CppClient,Xml,INSERT,1048576,0,1048576,23592960,1,0,109096,10171,[peer-N/A],cloud-cpp-testing-bm-2022-11-20_vjjybl7t69zj8xzvq,429dF3nRUkfUk3gRuXNBOKa4RgO1hrnf.txt,0,[upload-id-N/A],[retry-count-unknown],OK,
+2022-11-20T22:29:57.441050467Z,zone:us-central1-a;machine-type:n2-standard-64;instance-name:test;instance-id:5314231663513101774;project-id:spec-test-ruby-samples;project-number:787021104993,CppClient,Xml,READ[0],1048576,0,1048576,6291456,1,0,61348,4491,74.125.70.128,cloud-cpp-testing-bm-2022-11-20_vjjybl7t69zj8xzvq,429dF3nRUkfUk3gRuXNBOKa4RgO1hrnf.txt,1668983397429193,[upload-id-N/A],[retry-count-unknown],OK,
+2022-11-20T22:29:57.50492891Z,zone:us-central1-a;machine-type:n2-standard-64;instance-name:test;instance-id:5314231663513101774;project-id:spec-test-ruby-samples;project-number:787021104993,CppClient,Xml,READ[1],1048576,0,1048576,6291456,1,0,46571,2065,74.125.70.128,cloud-cpp-testing-bm-2022-11-20_vjjybl7t69zj8xzvq,429dF3nRUkfUk3gRuXNBOKa4RgO1hrnf.txt,1668983397429193,[upload-id-N/A],[retry-count-unknown],OK,
+2022-11-20T22:29:57.552032301Z,zone:us-central1-a;machine-type:n2-standard-64;instance-name:test;instance-id:5314231663513101774;project-id:spec-test-ruby-samples;project-number:787021104993,CppClient,Xml,READ[2],1048576,0,1048576,6291456,1,0,35808,2043,74.125.70.128,cloud-cpp-testing-bm-2022-11-20_vjjybl7t69zj8xzvq,429dF3nRUkfUk3gRuXNBOKa4RgO1hrnf.txt,1668983397429193,[upload-id-N/A],[retry-count-unknown],OK,
+# Deleting test objects [1]
+# Deleted in 38ms
+# DONE
