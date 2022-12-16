@@ -1,0 +1,12 @@
+name: Workload 7 AWK Postprocessing
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Test AWK Script
+        run: |
+          pushd ./unit_tests && ./workload_7_output_awk_test.sh
