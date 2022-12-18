@@ -54,11 +54,38 @@ def compare_mibs(df, a="Json", b="Xml", alpha=0.001):
     return p < alpha
 
 
+def hodges_lehmann(series_a, series_b, precision=100, sample_fraction=1.0):
+  bins = {}
+  for _, a in series_a.sample(frac=sample_fraction).items():
+    for _, b in series_b.sample(frac=sample_fraction).items():
+      delta = int(precision * (b - a))
+      c = bins.setdefault(delta, 0)
+      bins[delta] = c + 1
+  total = 0
+  for k, v in bins.items():
+    total += v
+  running = 0
+  for k in sorted(bins.keys()):
+    running += bins[k]
+    if running >= total / 2:
+      return k / float(precision)
+  return None
+
+
 def power_check(df):
-    std = df.groupby(["ApiName"], group_keys=True).MiBs.apply(np.std).max()
-    effect = 5 / std
+    # print(df.describe())
+    series = df.groupby(["ApiName"], group_keys=True).MiBs
+    std = series.apply(np.std).max()
+    hl_delta = hodges_lehmann(
+        series.get_group('Json'), series.get_group('Xml'),
+         sample_fraction=0.5)
+    # print(series.describe())
+    # print(hl_delta)
+    effect = hl_delta / std
     p = pwr.TTestIndPower()
-    needed_samples = round(p.solve_power(effect_size=effect, alpha=0.01, power=0.90))
+    needed_samples = p.solve_power(effect_size=effect, alpha=0.01, power=0.90)
+    # increase samples needed due to findings in https://en.wikipedia.org/wiki/Mann%E2%80%93Whitney_U_test#Comparison_to_Student%27s_t-test
+    needed_samples = needed_samples * 1.05
     sample_count = len(df.index)
     enough_samples = sample_count >= needed_samples
     power_results = {
@@ -133,9 +160,10 @@ def convert_timeseries_to_dataframe(timeseries):
         converted_datapoint = {
             "ApiName": labels["api"],
             "Op": op,
+            "ObjectSize": int(labels["transfer_size"]),
             "Crc32cEnabled": __str_bit_to_boolean(labels["crc32c_enabled"]),
             "MD5Enabled": __str_bit_to_boolean(labels["md5_enabled"]),
-            "MiBs": (int(labels["transfer_size"])/1048576)/(int(labels["elapsed_time_us"])/1000000),
+            "MiBs": (int(labels["transfer_size"])/1024/1024)/(int(labels["elapsed_time_us"])/1000000),
         }
         processed_data.append(converted_datapoint)
     df = pd.DataFrame.from_records(processed_data)
@@ -146,6 +174,7 @@ def write_stat_result(
     client,
     project_name,
     op,
+    object_size,
     crc32c_enabled,
     md5_enabled,
     result,
@@ -159,24 +188,40 @@ def write_stat_result(
     series.metric.type = (
         "custom.googleapis.com/cloudprober/external/workload_7/stat_result"
     )
-    series.metric.labels["Op"] = op
+    series.metric.labels["op"] = op
+    series.metric.labels["object_size"] = f"{object_size}"
     series.metric.labels["crc32c_enabled"] = __boolean_to_str_bit(crc32c_enabled)
     series.metric.labels["md5_enabled"] = __boolean_to_str_bit(md5_enabled)
-    series.metric.labels["neededSamples"] = power_info["needed_samples"]
-    series.metric.labels["sampleCount"] = power_info["sample_count"]
-    series.metric.labels["enoughSamples"] = power_info["enough_samples"]
+    series.metric.labels["needed_samples"] = power_info["needed_samples"]
+    series.metric.labels["sample_count"] = power_info["sample_count"]
+    series.metric.labels["enough_samples"] = power_info["enough_samples"]
     point = monitoring_v3.Point(
         {
             "interval": interval,
-            "value": {"bool_value": result.loc[(op, crc32c_enabled, md5_enabled)]},
+            "value": {"bool_value": result.loc[(op, object_size, crc32c_enabled, md5_enabled)]},
         }
     )
     series.points = [point]
     client.create_time_series(name=project_name_with_path, time_series=[series])
 
+def print_header():
+    print("op,object_size,crc32c_enabled,md5_enabled,needed_samples,sample_count,enough_samples")
+
+def print_result(
+    client,
+    project_name,
+    op,
+    object_size,
+    crc32c_enabled,
+    md5_enabled,
+    result,
+    power_info,
+    interval=None,
+):
+    print(f"{op},{object_size},{__boolean_to_str_bit(crc32c_enabled)},{__boolean_to_str_bit(md5_enabled)},{power_info['needed_samples']},{power_info['sample_count']},{power_info['enough_samples']}")
 
 def apply_compare_mibs(dataframe):
-    return dataframe.groupby(["Op", "Crc32cEnabled", "MD5Enabled"]).apply(compare_mibs)
+    return dataframe.groupby(["Op", "ObjectSize", "Crc32cEnabled", "MD5Enabled"], group_keys=True).apply(compare_mibs)
 
 
 @functions_framework.http
@@ -184,60 +229,109 @@ def run_workload_7_post_processing(_):
     # Use project of deployed GCF
     project_name = os.environ["GCP_PROJECT"]
     monitoring_client = monitoring_v3.MetricServiceClient()
-    timeseries_data = []
-    for api in ["Xml", "Json"]:
-        for upload_type in ["InsertObject", "WriteObject"]:
-            for size in [
-                8 * 1024,
-                256 * 1024,
-                1024 * 1024,
-                1024 * 1024 * 16,
-                1024 * 1024 * 128,
-                1024 * 1024 * 1024,
-            ]:
-                timeseries_data.extend(
-                    get_timeseries_last_n_seconds(
-                        monitoring_client,
-                        project_name,
-                        f"custom.googleapis.com/cloudprober/external/workload_7_{api}_{size}_{upload_type}/throughput",
-                        DAY_IN_SECONDS,  # 24 hours in seconds
-                    )
-                )
-            for range_size in [
-                1024 * 16,
-                1024 * 1024 * 2,
-                1024 * 1024 * 16,
-            ]:
-                timeseries_data.extend(
-                    get_timeseries_last_n_seconds(
-                        monitoring_client,
-                        project_name,
-                        f"custom.googleapis.com/cloudprober/external/workload_7_range_{api}_{range_size}_{upload_type}/throughput",
-                        DAY_IN_SECONDS,
-                        "READ",  # Ignore Writes
-                    )
-                )
-    full_dataframe = convert_timeseries_to_dataframe(timeseries_data)
     interval_to_write = current_interval()
-    for op in WORKLOADS_LIST:
+    # timeseries_data = []
+    # for api in ["Xml", "Json"]:
+    #     for upload_type in ["InsertObject", "WriteObject"]:
+    #         for size in [
+    #             8 * 1024,
+    #             256 * 1024,
+    #             1024 * 1024,
+    #             1024 * 1024 * 16,
+    #             1024 * 1024 * 128,
+    #             1024 * 1024 * 1024,
+    #         ]:
+    #             timeseries_data.extend(get_timeseries_last_n_seconds(
+    #                     monitoring_client,
+    #                     project_name,
+    #                     f"custom.googleapis.com/cloudprober/external/workload_7_{api}_{size}_{upload_type}/throughput",
+    #                     DAY_IN_SECONDS * 14,
+    #                 ))
+    #         for range_size in [
+    #             1024 * 16,
+    #             1024 * 1024 * 2,
+    #             1024 * 1024 * 16,
+    #         ]:
+    #             timeseries_data.extend(get_timeseries_last_n_seconds(
+    #                     monitoring_client,
+    #                     project_name,
+    #                     f"custom.googleapis.com/cloudprober/external/workload_7_range_{api}_{range_size}_{upload_type}/throughput",
+    #                     DAY_IN_SECONDS * 14,
+    #                     "READ",  # Ignore Writes
+    #             ))
+    # full_dataframe = convert_timeseries_to_dataframe(timeseries_data)
+    # full_dataframe.to_csv("out_12-6-22.csv")
+    full_dataframe = pd.read_csv("out_12-6-22.csv")
+    print_header()
+    for object_size in [
+              8 * 1024,
+              # 256 * 1024,
+              # 1024 * 1024,
+              # 1024 * 1024 * 16,
+              # 1024 * 1024 * 128,
+              # 1024 * 1024 * 1024,
+      ]:
+      for op in ["WRITE",
+                "INSERT", # TODO: INSERT may not be working as intended and is actually doing a WRITE;
+                "READ[0]",
+                "READ[1]",
+                "READ[2]",
+                ]:
         for hash_values in HASH_LIST:
-            filtered_df = full_dataframe[
-                (full_dataframe.Op == op)
-                & (full_dataframe.Crc32cEnabled == hash_values["crc32c"])
-                & (full_dataframe.MD5Enabled == hash_values["md5"])
-            ]
-            result = apply_compare_mibs(filtered_df)
-            power_info = power_check(filtered_df)
-            write_stat_result(
-                monitoring_client,
-                project_name,
-                op,
-                hash_values["crc32c"],
-                hash_values["md5"],
-                result,
-                power_info,
-                interval_to_write,
-            )
+          #try:
+          #print(f"op={op}, object_size={object_size}, crc32c={hash_values['crc32c']}, md5={hash_values['md5']}")
+          df = full_dataframe[
+              (full_dataframe.Op == op)
+              & (full_dataframe.ObjectSize == object_size)
+              & (full_dataframe.Crc32cEnabled == hash_values["crc32c"])
+              & (full_dataframe.MD5Enabled == hash_values["md5"])
+          ]
+          result = apply_compare_mibs(df)
+          power_info = power_check(df)
+          print_result(
+              monitoring_client,
+              project_name,
+              op,
+              object_size,
+              hash_values["crc32c"],
+              hash_values["md5"],
+              result,
+              power_info,
+              interval_to_write,
+          )
+          # except:
+          #   print(f"op={op}, object_size={object_size}, crc32c={hash_values['crc32c']}, md5={hash_values['md5']}")
+    for object_size in [
+              # 1024 * 16,
+              1024 * 1024 * 2,
+              1024 * 1024 * 16,
+        ]:
+      for op in ["RANGE[0]",
+               "RANGE[1]",
+               "RANGE[2]",]:
+        for hash_values in HASH_LIST:
+          #try:
+          df = full_dataframe[
+              (full_dataframe.Op == op)
+              & (full_dataframe.ObjectSize == object_size)
+              & (full_dataframe.Crc32cEnabled == hash_values["crc32c"])
+              & (full_dataframe.MD5Enabled == hash_values["md5"])
+          ]
+          result = apply_compare_mibs(df)
+          power_info = power_check(df)
+          print_result(
+              monitoring_client,
+              project_name,
+              op,
+              object_size,
+              hash_values["crc32c"],
+              hash_values["md5"],
+              result,
+              power_info,
+              interval_to_write,
+          )
+          # except:
+          #   print(f"op={op}, object_size={object_size}, crc32c={hash_values['crc32c']}, md5={hash_values['md5']}")
     return "ok"
 
 
