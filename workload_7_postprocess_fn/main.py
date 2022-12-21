@@ -41,17 +41,19 @@ HASH_LIST = [{"crc32c": True, "md5": False}, {"crc32c": False, "md5": False}]
 DAY_IN_SECONDS = 86400
 
 
-def compare_mibs(df, a="Json", b="Xml", alpha=0.001):
+def compare_throughput(df, a="Json", b="Xml", alpha=0.001):
     # alpha=0.001 more regirous than commonly used 0.05
     # Notes: Mannwhitneyu is able to apply the test across each subworkload
     # H_0: They're equal distributions
     # H_1: They're not equal distributions
-    _, p = sp.stats.mannwhitneyu(
-        df[df.ApiName == a].MiBs, df[df.ApiName == b].MiBs, alternative="two-sided"
+    statistic, p = sp.stats.mannwhitneyu(
+        df[df.ApiName == a].Throughput, df[df.ApiName == b].Throughput, alternative="two-sided"
     )
+    # https://en.wikipedia.org/wiki/Mann%E2%80%93Whitney_U_test#Rank-biserial_correlation
+    rank_biserial_correlation = ((2*statistic)/(len(df[df.ApiName == a].index) * len(df[df.ApiName == b].index)))-1
     # if p < alpha: H_1
     # else: H_0
-    return p < alpha
+    return rank_biserial_correlation, p < alpha
 
 
 def hodges_lehmann(series_a, series_b, precision=100, sample_fraction=1.0):
@@ -72,16 +74,34 @@ def hodges_lehmann(series_a, series_b, precision=100, sample_fraction=1.0):
   return None
 
 
-def power_check(df):
-    # print(df.describe())
-    series = df.groupby(["ApiName"], group_keys=True).MiBs
-    std = series.apply(np.std).max()
+def dl_effect(series):
     hl_delta = hodges_lehmann(
         series.get_group('Json'), series.get_group('Xml'),
          sample_fraction=0.5)
-    # print(series.describe())
-    # print(hl_delta)
+    std = series.apply(np.std).max()
     effect = hl_delta / std
+    return effect
+
+def large_object_effect(series):
+    std = series.apply(np.std).max()
+    return 5/std
+
+def medium_object_effect(series):
+    std = series.apply(np.std).max()
+    return 0.5/std
+
+def small_object_effect(series):
+    std = series.apply(np.std).max()
+    return 0.05/std
+
+
+def power_check(df, effect_fn):
+    # print(df.describe())
+    series = df.groupby(["ApiName"], group_keys=True).Throughput
+    mean_both = series.apply(np.mean)
+    std_both = series.apply(np.std)
+    std = std_both.max()
+    effect = effect_fn(series)
     p = pwr.TTestIndPower()
     needed_samples = p.solve_power(effect_size=effect, alpha=0.01, power=0.90)
     # increase samples needed due to findings in https://en.wikipedia.org/wiki/Mann%E2%80%93Whitney_U_test#Comparison_to_Student%27s_t-test
@@ -92,6 +112,11 @@ def power_check(df):
         "needed_samples": f"{needed_samples}",
         "sample_count": f"{sample_count}",
         "enough_samples": f"{enough_samples}",
+        "effect": f"{effect}",
+        "std_xml": f"{std_both.Xml}",
+        "std_json": f"{std_both.Json}",
+        "mean_xml": f"{mean_both.Xml}",
+        "mean_json": f"{mean_both.Json}",
     }
     return power_results
 
@@ -108,7 +133,7 @@ def get_timeseries_last_n_seconds(
     # Look back at yesterdays worth of data
     interval = monitoring_v3.TimeInterval(
         {
-            "end_time": {"seconds": seconds, "nanos": nanos},
+            "end_time": {"seconds": seconds , "nanos": nanos},
             "start_time": {"seconds": (seconds - lookback_seconds), "nanos": nanos},
         }
     )
@@ -155,15 +180,34 @@ def convert_timeseries_to_dataframe(timeseries):
     for datapoint in timeseries:
         labels = datapoint.metric.labels
         op = labels["op"]
+        transfer_size = int(labels["transfer_size"])
+        elapsed_time_us = int(labels["elapsed_time_us"])
+        throughput = 0
+        if transfer_size <= (1024*1024):
+          throughput = transfer_size/(elapsed_time_us/1000000)
+        else:
+          throughput = (transfer_size/1024/1024)/(elapsed_time_us/1000000)
         if int(labels["transfer_size"]) < int(labels["object_size"]):
             op = op.replace("READ", "RANGE")
         converted_datapoint = {
+            "Library": labels["library"],
             "ApiName": labels["api"],
             "Op": op,
-            "ObjectSize": int(labels["transfer_size"]),
+            "ObjectSize": transfer_size,
             "Crc32cEnabled": __str_bit_to_boolean(labels["crc32c_enabled"]),
             "MD5Enabled": __str_bit_to_boolean(labels["md5_enabled"]),
-            "MiBs": (int(labels["transfer_size"])/1024/1024)/(int(labels["elapsed_time_us"])/1000000),
+            "ElapsedTimeUs": elapsed_time_us,
+            "TransferSize": transfer_size,
+            "TransferOffset": int(labels["transfer_offset"]),
+            "AppBufferSize": int(labels["app_buffer_size"]),
+            "CpuTimeUs": int(labels["cpu_time_us"]),
+            "Peer": labels["peer"],
+            "BucketName": labels["bucket_name"],
+            "ObjectName": labels["object_name"],
+            "Generation": labels["generation"],
+            "UploadId": labels["upload_id"],
+            "StatusCode": labels["status_code"],
+            "Throughput": throughput,
         }
         processed_data.append(converted_datapoint)
     df = pd.DataFrame.from_records(processed_data)
@@ -205,23 +249,11 @@ def write_stat_result(
     client.create_time_series(name=project_name_with_path, time_series=[series])
 
 def print_header():
-    print("op,object_size,crc32c_enabled,md5_enabled,needed_samples,sample_count,enough_samples")
+    print("op,object_size,crc32c_enabled,md5_enabled,needed_samples,sample_count,enough_samples,effect,std_xml,std_json,mean_xml,mean_json,distribution_different")
 
-def print_result(
-    client,
-    project_name,
-    op,
-    object_size,
-    crc32c_enabled,
-    md5_enabled,
-    result,
-    power_info,
-    interval=None,
-):
-    print(f"{op},{object_size},{__boolean_to_str_bit(crc32c_enabled)},{__boolean_to_str_bit(md5_enabled)},{power_info['needed_samples']},{power_info['sample_count']},{power_info['enough_samples']}")
-
-def apply_compare_mibs(dataframe):
-    return dataframe.groupby(["Op", "ObjectSize", "Crc32cEnabled", "MD5Enabled"], group_keys=True).apply(compare_mibs)
+def apply_compare_throughput(dataframe):
+    result = dataframe.groupby(["Op", "ObjectSize", "Crc32cEnabled", "MD5Enabled"], group_keys=True).apply(compare_throughput)
+    return result[0][0], result[0][1]
 
 
 @functions_framework.http
@@ -232,7 +264,10 @@ def run_workload_7_post_processing(_):
     interval_to_write = current_interval()
     # timeseries_data = []
     # for api in ["Xml", "Json"]:
-    #     for upload_type in ["InsertObject", "WriteObject"]:
+    #     for upload_type in [
+    #       "InsertObject",
+    #       "WriteObject"
+    #       ]:
     #         for size in [
     #             8 * 1024,
     #             256 * 1024,
@@ -245,7 +280,7 @@ def run_workload_7_post_processing(_):
     #                     monitoring_client,
     #                     project_name,
     #                     f"custom.googleapis.com/cloudprober/external/workload_7_{api}_{size}_{upload_type}/throughput",
-    #                     DAY_IN_SECONDS * 14,
+    #                     DAY_IN_SECONDS * 14
     #                 ))
     #         for range_size in [
     #             1024 * 16,
@@ -258,80 +293,73 @@ def run_workload_7_post_processing(_):
     #                     f"custom.googleapis.com/cloudprober/external/workload_7_range_{api}_{range_size}_{upload_type}/throughput",
     #                     DAY_IN_SECONDS * 14,
     #                     "READ",  # Ignore Writes
+    #                     # now=1671178525
     #             ))
     # full_dataframe = convert_timeseries_to_dataframe(timeseries_data)
-    # full_dataframe.to_csv("out_12-6-22.csv")
-    full_dataframe = pd.read_csv("out_12-6-22.csv")
+    # full_dataframe.to_csv("out_12-20-22-all-part2.csv")
+    full_dataframe = pd.read_csv("out_12-20-22-all-part2.csv")
     print_header()
-    for object_size in [
-              8 * 1024,
-              # 256 * 1024,
-              # 1024 * 1024,
-              # 1024 * 1024 * 16,
-              # 1024 * 1024 * 128,
-              # 1024 * 1024 * 1024,
+
+    for object_size, effect_fn in [
+              (8 * 1024, dl_effect),
+              (256 * 1024, dl_effect),
+              (1024 * 1024, dl_effect),
+              (1024 * 1024 * 16, dl_effect),
+              (1024 * 1024 * 128, dl_effect),
+              (1024 * 1024 * 1024, dl_effect),
       ]:
       for op in ["WRITE",
-                "INSERT", # TODO: INSERT may not be working as intended and is actually doing a WRITE;
+                "INSERT",
                 "READ[0]",
                 "READ[1]",
                 "READ[2]",
                 ]:
         for hash_values in HASH_LIST:
-          #try:
-          #print(f"op={op}, object_size={object_size}, crc32c={hash_values['crc32c']}, md5={hash_values['md5']}")
-          df = full_dataframe[
-              (full_dataframe.Op == op)
-              & (full_dataframe.ObjectSize == object_size)
-              & (full_dataframe.Crc32cEnabled == hash_values["crc32c"])
-              & (full_dataframe.MD5Enabled == hash_values["md5"])
-          ]
-          result = apply_compare_mibs(df)
-          power_info = power_check(df)
-          print_result(
-              monitoring_client,
-              project_name,
-              op,
-              object_size,
-              hash_values["crc32c"],
-              hash_values["md5"],
-              result,
-              power_info,
-              interval_to_write,
-          )
-          # except:
-          #   print(f"op={op}, object_size={object_size}, crc32c={hash_values['crc32c']}, md5={hash_values['md5']}")
-    for object_size in [
-              # 1024 * 16,
-              1024 * 1024 * 2,
-              1024 * 1024 * 16,
+          try:
+            df = full_dataframe[
+                (full_dataframe.Op == op)
+                & (full_dataframe.ObjectSize == object_size)
+                & (full_dataframe.Crc32cEnabled == hash_values["crc32c"])
+                & (full_dataframe.MD5Enabled == hash_values["md5"])
+            ]
+            effect, result = apply_compare_throughput(df)
+            def eff_fn(x):
+              return effect
+            # Use rank biserial correlation
+            power_info = power_check(df, eff_fn)
+            # Use cohen estimator
+            # power_info = power_check(df, effect_fn)
+            print(f"{op},{object_size},{hash_values['crc32c']},{hash_values['md5']},{power_info['needed_samples']},{power_info['sample_count']},{power_info['enough_samples']},{power_info['effect']},{power_info['std_xml']},{power_info['std_json']},{power_info['mean_xml']},{power_info['mean_json']},{result}")
+          except Exception as e:
+            print(e)
+            print(f"{op},{object_size},{hash_values['crc32c']},{hash_values['md5']},,,,,,,,,True")
+    for object_size, effect_fn in [
+              (1024 * 16, dl_effect),
+              (1024 * 1024 * 2, dl_effect),
+              (1024 * 1024 * 16, dl_effect),
         ]:
       for op in ["RANGE[0]",
                "RANGE[1]",
                "RANGE[2]",]:
-        for hash_values in HASH_LIST:
-          #try:
-          df = full_dataframe[
-              (full_dataframe.Op == op)
-              & (full_dataframe.ObjectSize == object_size)
-              & (full_dataframe.Crc32cEnabled == hash_values["crc32c"])
-              & (full_dataframe.MD5Enabled == hash_values["md5"])
-          ]
-          result = apply_compare_mibs(df)
-          power_info = power_check(df)
-          print_result(
-              monitoring_client,
-              project_name,
-              op,
-              object_size,
-              hash_values["crc32c"],
-              hash_values["md5"],
-              result,
-              power_info,
-              interval_to_write,
-          )
-          # except:
-          #   print(f"op={op}, object_size={object_size}, crc32c={hash_values['crc32c']}, md5={hash_values['md5']}")
+          hash_values = {"crc32c": False, "md5": False}
+          try:
+            df = full_dataframe[
+                (full_dataframe.Op == op)
+                & (full_dataframe.ObjectSize == object_size)
+                & (full_dataframe.Crc32cEnabled == hash_values["crc32c"])
+                & (full_dataframe.MD5Enabled == hash_values["md5"])
+            ]
+            effect, result = apply_compare_throughput(df)
+            def eff_fn(x):
+              return effect
+            # Use rank biserial correlation
+            power_info = power_check(df, eff_fn)
+            # Use effect_fn (cohen estimator,
+            # power_info = power_check(df, effect_fn)
+            print(f"{op},{object_size},{hash_values['crc32c']},{hash_values['md5']},{power_info['needed_samples']},{power_info['sample_count']},{power_info['enough_samples']},{power_info['effect']},{power_info['std_xml']},{power_info['std_json']},{power_info['mean_xml']},{power_info['mean_json']},{result}")
+          except Exception as e:
+            print(e)
+            print(f"{op},{object_size},{hash_values['crc32c']},{hash_values['md5']},,,,,,,,,True")
     return "ok"
 
 
