@@ -319,45 +319,45 @@ def winning_api_result(object_size, two_tailed, json_less_than_xml, enough_sampl
 @functions_framework.http
 def run_workload_7_post_processing(_):
     # Use project of deployed GCF
-    # project_name = os.environ["GCP_PROJECT"]
-    # monitoring_client = monitoring_v3.MetricServiceClient()
-    # interval_to_write = current_interval()
-    # timeseries_data = []
-    # for api in ["Xml", "Json"]:
-    #     for upload_type in [
-    #       "InsertObject",
-    #       "WriteObject"
-    #       ]:
-    #         for size in [
-    #             8 * 1024,
-    #             256 * 1024,
-    #             1024 * 1024,
-    #             1024 * 1024 * 16,
-    #             1024 * 1024 * 128,
-    #             1024 * 1024 * 1024,
-    #         ]:
-    #             timeseries_data.extend(get_timeseries_last_n_seconds(
-    #                     monitoring_client,
-    #                     project_name,
-    #                     f"custom.googleapis.com/cloudprober/external/workload_7_{api}_{size}_{upload_type}/throughput",
-    #                     DAY_IN_SECONDS * 60
-    #                 ))
-    #         for range_size in [
-    #             1024 * 16,
-    #             1024 * 1024 * 2,
-    #             1024 * 1024 * 16,
-    #         ]:
-    #             timeseries_data.extend(get_timeseries_last_n_seconds(
-    #                     monitoring_client,
-    #                     project_name,
-    #                     f"custom.googleapis.com/cloudprober/external/workload_7_range_{api}_{range_size}_{upload_type}/throughput",
-    #                     DAY_IN_SECONDS * 60,
-    #                     "READ",  # Ignore Writes
-    #                     # now=1671178525
-    #             ))
-    # full_dataframe = convert_timeseries_to_dataframe(timeseries_data)
+    project_name = os.environ["GCP_PROJECT"]
+    monitoring_client = monitoring_v3.MetricServiceClient()
+    interval_to_write = current_interval()
+    timeseries_data = []
+    for api in ["Xml", "Json"]:
+        for upload_type in [
+          "InsertObject",
+          "WriteObject"
+          ]:
+            for size in [
+                8 * 1024,
+                256 * 1024,
+                1024 * 1024,
+                1024 * 1024 * 16,
+                1024 * 1024 * 128,
+                1024 * 1024 * 1024,
+            ]:
+                timeseries_data.extend(get_timeseries_last_n_seconds(
+                        monitoring_client,
+                        project_name,
+                        f"custom.googleapis.com/cloudprober/external/workload_7_{api}_{size}_{upload_type}/throughput",
+                        DAY_IN_SECONDS * 60
+                    ))
+            for range_size in [
+                1024 * 16,
+                1024 * 1024 * 2,
+                1024 * 1024 * 16,
+            ]:
+                timeseries_data.extend(get_timeseries_last_n_seconds(
+                        monitoring_client,
+                        project_name,
+                        f"custom.googleapis.com/cloudprober/external/workload_7_range_{api}_{range_size}_{upload_type}/throughput",
+                        DAY_IN_SECONDS * 60,
+                        "READ",  # Ignore Writes
+                        # now=1671178525
+                ))
+    full_dataframe = convert_timeseries_to_dataframe(timeseries_data)
     # full_dataframe.to_csv("out_12-22-22-all-updateX.csv")
-    full_dataframe = pd.read_csv("out_12-22-22-all-update2.csv")
+    # full_dataframe = pd.read_csv("out_12-22-22-all-update2.csv")
     print_header()
     for object_size, effect_fn in [
         (8 * 1024, acceptable_effect),
