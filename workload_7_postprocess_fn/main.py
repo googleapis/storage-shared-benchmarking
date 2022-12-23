@@ -48,79 +48,97 @@ def compare_throughput(df, a="Json", b="Xml", alpha=0.001):
     # H_1: They're not equal distributions
     statistic, p = None, None
     s_less, p_less = None, None
-    if (df.ObjectSize.max() <= 1024*1024):
-      statistic, p = sp.stats.mannwhitneyu(
-        df[df.ApiName == a].ElapsedTimeUs, df[df.ApiName == b].ElapsedTimeUs, alternative="two-sided"
-      )
-      s_less, p_less = sp.stats.mannwhitneyu(
-        df[df.ApiName == a].ElapsedTimeUs, df[df.ApiName == b].ElapsedTimeUs, alternative="less"
-      )
+    if df.ObjectSize.max() <= 1024 * 1024:
+        group_a = df[df.ApiName == a].ThroughputKiBs
+        group_b = df[df.ApiName == b].ThroughputKiBs
+        statistic, p = sp.stats.mannwhitneyu(
+            group_a,
+            group_b,
+            alternative="two-sided",
+        )
+        s_less, p_less = sp.stats.mannwhitneyu(
+            group_a,
+            group_b,
+            alternative="less",
+        )
     else:
-      statistic, p = sp.stats.mannwhitneyu(
-        df[df.ApiName == a].Throughput, df[df.ApiName == b].Throughput, alternative="two-sided"
-      )
-      s_less, p_less = sp.stats.mannwhitneyu(
-        df[df.ApiName == a].Throughput, df[df.ApiName == b].Throughput, alternative="less"
-      )
+        group_a = df[df.ApiName == a].ThroughputMiBs
+        group_b = df[df.ApiName == b].ThroughputMiBs
+        statistic, p = sp.stats.mannwhitneyu(
+            group_a,
+            group_b,
+            alternative="two-sided",
+        )
+        s_less, p_less = sp.stats.mannwhitneyu(
+            group_a,
+            group_b,
+            alternative="less",
+        )
     # https://en.wikipedia.org/wiki/Mann%E2%80%93Whitney_U_test#Rank-biserial_correlation
-    rank_biserial_correlation = ((2*statistic)/(len(df[df.ApiName == a].index) * len(df[df.ApiName == b].index)))-1
-    rank_biserial_correlation_less = ((2*s_less)/(len(df[df.ApiName == a].index) * len(df[df.ApiName == b].index)))-1
+    rank_biserial_correlation = (
+        (2 * statistic)
+        / (len(df[df.ApiName == a].index) * len(df[df.ApiName == b].index))
+    ) - 1
+    rank_biserial_correlation_less = (
+        (2 * s_less) / (len(df[df.ApiName == a].index) * len(df[df.ApiName == b].index))
+    ) - 1
     # if p < alpha: H_1
     # else: H_0
-    return rank_biserial_correlation, p < alpha, rank_biserial_correlation_less, p_less < alpha
+    return (
+        rank_biserial_correlation,
+        p < alpha,
+        rank_biserial_correlation_less,
+        p_less < alpha,
+    )
+
 
 def apply_compare_throughput(dataframe):
-    result = dataframe.groupby(["Op", "ObjectSize", "Crc32cEnabled", "MD5Enabled"], group_keys=True).apply(compare_throughput)
+    result = dataframe.groupby(
+        ["Op", "ObjectSize", "Crc32cEnabled", "MD5Enabled"], group_keys=True
+    ).apply(compare_throughput)
     return result[0][0], result[0][1], result[0][2], result[0][3]
 
+
 def hodges_lehmann(series_a, series_b, precision=100, sample_fraction=1.0):
-  bins = {}
-  for _, a in series_a.sample(frac=sample_fraction).items():
-    for _, b in series_b.sample(frac=sample_fraction).items():
-      delta = int(precision * (b - a))
-      c = bins.setdefault(delta, 0)
-      bins[delta] = c + 1
-  total = 0
-  for k, v in bins.items():
-    total += v
-  running = 0
-  for k in sorted(bins.keys()):
-    running += bins[k]
-    if running >= total / 2:
-      return k / float(precision)
-  return None
+    bins = {}
+    for _, a in series_a.sample(frac=sample_fraction).items():
+        for _, b in series_b.sample(frac=sample_fraction).items():
+            delta = int(precision * (b - a))
+            c = bins.setdefault(delta, 0)
+            bins[delta] = c + 1
+    total = 0
+    for k, v in bins.items():
+        total += v
+    running = 0
+    for k in sorted(bins.keys()):
+        running += bins[k]
+        if running >= total / 2:
+            return k / float(precision)
+    return None
 
 
 def dl_effect(series):
     hl_delta = hodges_lehmann(
-        series.get_group('Json'), series.get_group('Xml'),
-         sample_fraction=0.5)
+        series.get_group("Json"), series.get_group("Xml"), sample_fraction=0.5
+    )
     std = series.apply(np.std).max()
     effect = hl_delta / std
     return effect
 
-def large_object_effect(series):
-    std = series.apply(np.std).max()
-    # 5 MiB/s effect
-    return 5/std
 
-def medium_object_effect(series):
+def acceptable_effect(series):
     std = series.apply(np.std).max()
-    # 0.5 MiB/s effect
-    return 0.5/std
-
-def two_mib_object_effect(series):
-    std = series.apply(np.std).max()
-    return .5/std
+    mean = series.apply(np.mean).max()
+    effect = (mean * 0.01) / std
+    return effect
 
 
 def power_check(df, effect_fn):
-    # print(df.describe())
     series = None
-    if (df.ObjectSize.max() <= 1024*1024):
-      series = df.groupby(["ApiName"], group_keys=True).ElapsedTimeUs
+    if df.ObjectSize.max() <= 1024 * 1024:
+        series = df.groupby(["ApiName"], group_keys=True).ThroughputKiBs
     else:
-      series = df.groupby(["ApiName"], group_keys=True).Throughput
+        series = df.groupby(["ApiName"], group_keys=True).ThroughputMiBs
     mean_both = series.apply(np.mean)
     std_both = series.apply(np.std)
     std = std_both.max()
@@ -132,7 +150,7 @@ def power_check(df, effect_fn):
     sample_count = len(df.index)
     enough_samples = sample_count >= needed_samples
     power_results = {
-        "needed_samples": f"{needed_samples}",
+        "needed_samples": f"{round(needed_samples, -1)}",
         "sample_count": f"{sample_count}",
         "enough_samples": f"{enough_samples}",
         "effect": f"{effect}",
@@ -156,7 +174,7 @@ def get_timeseries_last_n_seconds(
     # Look back at yesterdays worth of data
     interval = monitoring_v3.TimeInterval(
         {
-            "end_time": {"seconds": seconds , "nanos": nanos},
+            "end_time": {"seconds": seconds, "nanos": nanos},
             "start_time": {"seconds": (seconds - lookback_seconds), "nanos": nanos},
         }
     )
@@ -205,8 +223,9 @@ def convert_timeseries_to_dataframe(timeseries):
         op = labels["op"]
         transfer_size = int(labels["transfer_size"])
         elapsed_time_us = int(labels["elapsed_time_us"])
-        throughput = 0
-        throughput = (transfer_size/1024/1024)/(elapsed_time_us/1000000)
+        us_in_seconds = 1_000_000
+        throughput_mibs = (transfer_size / 1024 / 1024) / (elapsed_time_us / us_in_seconds)
+        throughput_kibs = (transfer_size / 1024) / (elapsed_time_us / us_in_seconds)
         if int(labels["transfer_size"]) < int(labels["object_size"]):
             op = op.replace("READ", "RANGE")
         converted_datapoint = {
@@ -227,7 +246,8 @@ def convert_timeseries_to_dataframe(timeseries):
             "Generation": labels["generation"],
             "UploadId": labels["upload_id"],
             "StatusCode": labels["status_code"],
-            "Throughput": throughput,
+            "ThroughputMiBs": throughput_mibs,
+            "ThroughputKiBs": throughput_kibs,
         }
         processed_data.append(converted_datapoint)
     df = pd.DataFrame.from_records(processed_data)
@@ -262,124 +282,150 @@ def write_stat_result(
     point = monitoring_v3.Point(
         {
             "interval": interval,
-            "value": {"bool_value": result.loc[(op, object_size, crc32c_enabled, md5_enabled)]},
+            "value": {
+                "bool_value": result.loc[(op, object_size, crc32c_enabled, md5_enabled)]
+            },
         }
     )
     series.points = [point]
     client.create_time_series(name=project_name_with_path, time_series=[series])
 
+
 def print_header():
-    print("op,object_size,crc32c_enabled,md5_enabled,needed_samples,sample_count,enough_samples,effect,std_xml,std_json,mean_xml,mean_json,distribution_different,json_less_than_xml,effect_json_less_than_xml")
+    print(
+        "op,object_size,needed_samples,sample_count,enough_samples,effect,std_xml,std_json,mean_xml,mean_json,distribution_different,json_less_than_xml,effect_json_less_than_xml,winning_api,winning_api_without_power"
+    )
+
+
+def winning_api_result(object_size, two_tailed, json_less_than_xml, enough_samples):
+  lesser_than = "XML"
+  greater_than = "JSON"
+  if object_size <= 1024*1024:
+    greater_than = "XML"
+    lesser_than = "JSON"
+  winning_api = None
+  if not two_tailed:
+    winning_api = "Identical"
+  elif two_tailed and json_less_than_xml:
+    winning_api = lesser_than
+  elif two_tailed and not json_less_than_xml:
+    winning_api = greater_than
+  if enough_samples == "False":
+    return "Need more samples", winning_api
+  else:
+    return winning_api, winning_api
 
 
 @functions_framework.http
 def run_workload_7_post_processing(_):
     # Use project of deployed GCF
-    project_name = os.environ["GCP_PROJECT"]
-    monitoring_client = monitoring_v3.MetricServiceClient()
-    interval_to_write = current_interval()
-    timeseries_data = []
-    for api in ["Xml", "Json"]:
-        for upload_type in [
-          "InsertObject",
-          "WriteObject"
-          ]:
-            for size in [
-                8 * 1024,
-                256 * 1024,
-                1024 * 1024,
-                1024 * 1024 * 16,
-                1024 * 1024 * 128,
-                1024 * 1024 * 1024,
-            ]:
-                timeseries_data.extend(get_timeseries_last_n_seconds(
-                        monitoring_client,
-                        project_name,
-                        f"custom.googleapis.com/cloudprober/external/workload_7_{api}_{size}_{upload_type}/throughput",
-                        DAY_IN_SECONDS * 30
-                    ))
-            for range_size in [
-                1024 * 16,
-                1024 * 1024 * 2,
-                1024 * 1024 * 16,
-            ]:
-                timeseries_data.extend(get_timeseries_last_n_seconds(
-                        monitoring_client,
-                        project_name,
-                        f"custom.googleapis.com/cloudprober/external/workload_7_range_{api}_{range_size}_{upload_type}/throughput",
-                        DAY_IN_SECONDS * 30,
-                        "READ",  # Ignore Writes
-                        # now=1671178525
-                ))
-    full_dataframe = convert_timeseries_to_dataframe(timeseries_data)
-    # full_dataframe.to_csv("out_12-22-22-all.csv")
-    # full_dataframe = pd.read_csv("out_12-22-22-all.csv")
+    # project_name = os.environ["GCP_PROJECT"]
+    # monitoring_client = monitoring_v3.MetricServiceClient()
+    # interval_to_write = current_interval()
+    # timeseries_data = []
+    # for api in ["Xml", "Json"]:
+    #     for upload_type in [
+    #       "InsertObject",
+    #       "WriteObject"
+    #       ]:
+    #         for size in [
+    #             8 * 1024,
+    #             256 * 1024,
+    #             1024 * 1024,
+    #             1024 * 1024 * 16,
+    #             1024 * 1024 * 128,
+    #             1024 * 1024 * 1024,
+    #         ]:
+    #             timeseries_data.extend(get_timeseries_last_n_seconds(
+    #                     monitoring_client,
+    #                     project_name,
+    #                     f"custom.googleapis.com/cloudprober/external/workload_7_{api}_{size}_{upload_type}/throughput",
+    #                     DAY_IN_SECONDS * 60
+    #                 ))
+    #         for range_size in [
+    #             1024 * 16,
+    #             1024 * 1024 * 2,
+    #             1024 * 1024 * 16,
+    #         ]:
+    #             timeseries_data.extend(get_timeseries_last_n_seconds(
+    #                     monitoring_client,
+    #                     project_name,
+    #                     f"custom.googleapis.com/cloudprober/external/workload_7_range_{api}_{range_size}_{upload_type}/throughput",
+    #                     DAY_IN_SECONDS * 60,
+    #                     "READ",  # Ignore Writes
+    #                     # now=1671178525
+    #             ))
+    # full_dataframe = convert_timeseries_to_dataframe(timeseries_data)
+    # full_dataframe.to_csv("out_12-22-22-all-updateX.csv")
+    full_dataframe = pd.read_csv("out_12-22-22-all-update2.csv")
     print_header()
-
     for object_size, effect_fn in [
-              (8 * 1024, dl_effect),
-              (256 * 1024, dl_effect),
-              (1024 * 1024, dl_effect),
-              (1024 * 1024 * 16, medium_object_effect),
-              (1024 * 1024 * 128, large_object_effect),
-              (1024 * 1024 * 1024, large_object_effect),
-      ]:
-      for op in ["WRITE",
-                "INSERT",
-                "READ[2]",
-                ]:
-        for hash_values in HASH_LIST:
-          try:
-            df = full_dataframe[
-                (full_dataframe.Op == op)
-                & (full_dataframe.ObjectSize == object_size)
-                & (full_dataframe.Crc32cEnabled == hash_values["crc32c"])
-                & (full_dataframe.MD5Enabled == hash_values["md5"])
-            ]
-            effect, result, effect_json_less_than_xml, json_less_than_xml = apply_compare_throughput(df)
-            # Use rank biserial correlation
-            # def eff_fn(x):
-            #   return effect
-            # power_info = power_check(df, eff_fn)
-            # Use cohen estimator
-            power_info = power_check(df, effect_fn)
-            if not result:
-              json_less_than_xml = "N/A"
-              effect_json_less_than_xml = "N/A"
-            print(f"{op},{object_size},{hash_values['crc32c']},{hash_values['md5']},{power_info['needed_samples']},{power_info['sample_count']},{power_info['enough_samples']},{power_info['effect']},{power_info['std_xml']},{power_info['std_json']},{power_info['mean_xml']},{power_info['mean_json']},{result},{json_less_than_xml},{effect_json_less_than_xml}")
-          except Exception as e:
-            print(e)
-            print(f"{op},{object_size},{hash_values['crc32c']},{hash_values['md5']},,,,,,,,,True")
-    for object_size, effect_fn in [
-              (1024 * 16, dl_effect),
-              (1024 * 1024 * 2, dl_effect),
-              (1024 * 1024 * 16, medium_object_effect),
+        (8 * 1024, acceptable_effect),
+        (256 * 1024, acceptable_effect),
+        (1024 * 1024, acceptable_effect),
+        (1024 * 1024 * 16, acceptable_effect),
+        (1024 * 1024 * 128, acceptable_effect),
+        (1024 * 1024 * 1024, acceptable_effect),
+    ]:
+        for op in [
+            "WRITE",
+            "INSERT",
+            "READ[2]",
         ]:
-      for op in [
-               "RANGE[2]",
-               ]:
-          hash_values = {"crc32c": False, "md5": False}
-          try:
-            df = full_dataframe[
-                (full_dataframe.Op == op)
-                & (full_dataframe.ObjectSize == object_size)
-                & (full_dataframe.Crc32cEnabled == hash_values["crc32c"])
-                & (full_dataframe.MD5Enabled == hash_values["md5"])
-            ]
-            effect, result, effect_json_less_than_xml, json_less_than_xml = apply_compare_throughput(df)
-            # Use rank biserial correlation
-            # def eff_fn(x):
-            #   return effect
-            # power_info = power_check(df, eff_fn)
-            # Use effect_fn (cohen estimator,
-            power_info = power_check(df, effect_fn)
-            if not result:
-              json_less_than_xml = "N/A"
-              effect_json_less_than_xml = "N/A"
-            print(f"{op},{object_size},{hash_values['crc32c']},{hash_values['md5']},{power_info['needed_samples']},{power_info['sample_count']},{power_info['enough_samples']},{power_info['effect']},{power_info['std_xml']},{power_info['std_json']},{power_info['mean_xml']},{power_info['mean_json']},{result},{json_less_than_xml},{effect_json_less_than_xml}")
-          except Exception as e:
-            print(e)
-            print(f"{op},{object_size},{hash_values['crc32c']},{hash_values['md5']},,,,,,,,,True")
+            try:
+                df = full_dataframe[
+                    (full_dataframe.Op == op)
+                    & (full_dataframe.ObjectSize == object_size)
+                    & (full_dataframe.StatusCode == "OK")
+                ]
+                (
+                    effect,
+                    result,
+                    effect_json_less_than_xml,
+                    json_less_than_xml,
+                ) = apply_compare_throughput(df)
+                power_info = power_check(df, effect_fn)
+                (winning_api, winning_api_without_power) = winning_api_result(object_size, result, json_less_than_xml, power_info["enough_samples"])
+                if not result:
+                    json_less_than_xml = "N/A"
+                    effect_json_less_than_xml = "N/A"
+                print(
+                    f"{op},{object_size},{power_info['needed_samples']},{power_info['sample_count']},{power_info['enough_samples']},{power_info['effect']},{power_info['std_xml']},{power_info['std_json']},{power_info['mean_xml']},{power_info['mean_json']},{result},{json_less_than_xml},{effect_json_less_than_xml},{winning_api},{winning_api_without_power}"
+                )
+            except Exception as e:
+                print(e)
+                print(f"{op},{object_size},,,,,,,,,True")
+    for object_size, effect_fn in [
+        (1024 * 16, acceptable_effect),
+        (1024 * 1024 * 2, acceptable_effect),
+        (1024 * 1024 * 16, acceptable_effect),
+    ]:
+        for op in [
+            "RANGE[2]",
+        ]:
+            try:
+                df = full_dataframe[
+                    (full_dataframe.Op == op)
+                    & (full_dataframe.ObjectSize == object_size)
+                    & (full_dataframe.StatusCode == "OK")
+                ]
+                (
+                    effect,
+                    result,
+                    effect_json_less_than_xml,
+                    json_less_than_xml,
+                ) = apply_compare_throughput(df)
+                power_info = power_check(df, effect_fn)
+                if not result:
+                  json_less_than_xml = "N/A"
+                  effect_json_less_than_xml = "N/A"
+                winning_api, winning_api_without_power = winning_api_result(object_size, result, json_less_than_xml, power_info["enough_samples"])
+                print(
+                    f"{op},{object_size},{power_info['needed_samples']},{power_info['sample_count']},{power_info['enough_samples']},{power_info['effect']},{power_info['std_xml']},{power_info['std_json']},{power_info['mean_xml']},{power_info['mean_json']},{result},{json_less_than_xml},{effect_json_less_than_xml},{winning_api},{winning_api_without_power}"
+                )
+            except Exception as e:
+                print(e)
+                print(f"{op},{object_size},,,,,,,,,True")
     return "ok"
 
 
