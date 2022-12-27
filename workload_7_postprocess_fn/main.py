@@ -48,7 +48,7 @@ def compare_throughput(df, a="Json", b="Xml", alpha=0.001):
     # H_1: They're not equal distributions
     statistic, p = None, None
     s_less, p_less = None, None
-    if df.ObjectSize.max() <= 1024 * 1024:
+    if df.ObjectSize.max() < 1024 * 1024:
         group_a = df[df.ApiName == a].ThroughputKiBs
         group_b = df[df.ApiName == b].ThroughputKiBs
         statistic, p = sp.stats.mannwhitneyu(
@@ -99,43 +99,21 @@ def apply_compare_throughput(dataframe):
     return result[0][0], result[0][1], result[0][2], result[0][3]
 
 
-def hodges_lehmann(series_a, series_b, precision=100, sample_fraction=1.0):
-    bins = {}
-    for _, a in series_a.sample(frac=sample_fraction).items():
-        for _, b in series_b.sample(frac=sample_fraction).items():
-            delta = int(precision * (b - a))
-            c = bins.setdefault(delta, 0)
-            bins[delta] = c + 1
-    total = 0
-    for k, v in bins.items():
-        total += v
-    running = 0
-    for k in sorted(bins.keys()):
-        running += bins[k]
-        if running >= total / 2:
-            return k / float(precision)
-    return None
-
-
-def dl_effect(series):
-    hl_delta = hodges_lehmann(
-        series.get_group("Json"), series.get_group("Xml"), sample_fraction=0.5
-    )
-    std = series.apply(np.std).max()
-    effect = hl_delta / std
-    return effect
-
-
 def acceptable_effect(series):
     std = series.apply(np.std).max()
     mean = series.apply(np.mean).max()
+    # Based on Cohens D standardized effect
+    # to get % of effect based on input max mean and max std that
+    # is used to determined the effect we want to find when
+    # running Mann-Whitney U Test; We say we only care about effect greater
+    # than or equal X% of the mean throughput.
     effect = (mean * 0.01) / std
     return effect
 
 
 def power_check(df, effect_fn):
     series = None
-    if df.ObjectSize.max() <= 1024 * 1024:
+    if df.ObjectSize.max() < 1024 * 1024:
         series = df.groupby(["ApiName"], group_keys=True).ThroughputKiBs
     else:
         series = df.groupby(["ApiName"], group_keys=True).ThroughputMiBs
@@ -220,6 +198,7 @@ def convert_timeseries_to_dataframe(timeseries):
     processed_data = []
     for datapoint in timeseries:
         labels = datapoint.metric.labels
+        point = datapoint.points[0]
         op = labels["op"]
         transfer_size = int(labels["transfer_size"])
         elapsed_time_us = int(labels["elapsed_time_us"])
@@ -229,6 +208,7 @@ def convert_timeseries_to_dataframe(timeseries):
         if int(labels["transfer_size"]) < int(labels["object_size"]):
             op = op.replace("READ", "RANGE")
         converted_datapoint = {
+            "Timestamp": f"{point.interval.end_time}",
             "Library": labels["library"],
             "ApiName": labels["api"],
             "Op": op,
@@ -300,9 +280,6 @@ def print_header():
 def winning_api_result(object_size, two_tailed, json_less_than_xml, enough_samples):
   lesser_than = "XML"
   greater_than = "JSON"
-  if object_size <= 1024*1024:
-    greater_than = "XML"
-    lesser_than = "JSON"
   winning_api = None
   if not two_tailed:
     winning_api = "Identical"
@@ -356,8 +333,9 @@ def run_workload_7_post_processing(_):
                         # now=1671178525
                 ))
     full_dataframe = convert_timeseries_to_dataframe(timeseries_data)
-    # full_dataframe.to_csv("out_12-22-22-all-updateX.csv")
-    # full_dataframe = pd.read_csv("out_12-22-22-all-update2.csv")
+    full_dataframe.to_csv("out_last-60-with-timestamp.csv")
+    full_dataframe = pd.read_csv("out_last-60-with-timestamp.csv")
+    print(full_dataframe.Timestamp.describe())
     print_header()
     for object_size, effect_fn in [
         (8 * 1024, acceptable_effect),
@@ -416,10 +394,10 @@ def run_workload_7_post_processing(_):
                     json_less_than_xml,
                 ) = apply_compare_throughput(df)
                 power_info = power_check(df, effect_fn)
+                winning_api, winning_api_without_power = winning_api_result(object_size, result, json_less_than_xml, power_info["enough_samples"])
                 if not result:
                   json_less_than_xml = "N/A"
                   effect_json_less_than_xml = "N/A"
-                winning_api, winning_api_without_power = winning_api_result(object_size, result, json_less_than_xml, power_info["enough_samples"])
                 print(
                     f"{op},{object_size},{power_info['needed_samples']},{power_info['sample_count']},{power_info['enough_samples']},{power_info['effect']},{power_info['std_xml']},{power_info['std_json']},{power_info['mean_xml']},{power_info['mean_json']},{result},{json_less_than_xml},{effect_json_less_than_xml},{winning_api},{winning_api_without_power}"
                 )
