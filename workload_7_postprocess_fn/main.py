@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import functions_framework
 from google.cloud import monitoring_v3
 import statsmodels.stats.power as pwr
 import numpy as np
@@ -48,7 +47,7 @@ def compare_throughput(df, a="Json", b="Xml", alpha=0.001):
     # H_1: They're not equal distributions
     statistic, p = None, None
     s_less, p_less = None, None
-    if df.ObjectSize.max() < 1024 * 1024:
+    if df.TransferSize.max() < 1024 * 1024:
         group_a = df[df.ApiName == a].ThroughputKiBs
         group_b = df[df.ApiName == b].ThroughputKiBs
         statistic, p = sp.stats.mannwhitneyu(
@@ -94,7 +93,7 @@ def compare_throughput(df, a="Json", b="Xml", alpha=0.001):
 
 def apply_compare_throughput(dataframe):
     result = dataframe.groupby(
-        ["Op", "ObjectSize", "Crc32cEnabled", "MD5Enabled"], group_keys=True
+        ["Op", "TransferSize", "Crc32cEnabled", "MD5Enabled"], group_keys=True
     ).apply(compare_throughput)
     return result[0][0], result[0][1], result[0][2], result[0][3]
 
@@ -113,7 +112,7 @@ def acceptable_effect(series):
 
 def power_check(df, effect_fn):
     series = None
-    if df.ObjectSize.max() < 1024 * 1024:
+    if df.TransferSize.max() < 1024 * 1024:
         series = df.groupby(["ApiName"], group_keys=True).ThroughputKiBs
     else:
         series = df.groupby(["ApiName"], group_keys=True).ThroughputMiBs
@@ -202,17 +201,20 @@ def convert_timeseries_to_dataframe(timeseries):
         op = labels["op"]
         transfer_size = int(labels["transfer_size"])
         elapsed_time_us = int(labels["elapsed_time_us"])
+        object_size = int(labels["object_size"])
         us_in_seconds = 1_000_000
-        throughput_mibs = (transfer_size / 1024 / 1024) / (elapsed_time_us / us_in_seconds)
+        throughput_mibs = (transfer_size / 1024 / 1024) / (
+            elapsed_time_us / us_in_seconds
+        )
         throughput_kibs = (transfer_size / 1024) / (elapsed_time_us / us_in_seconds)
-        if int(labels["transfer_size"]) < int(labels["object_size"]):
+        if transfer_size < object_size:
             op = op.replace("READ", "RANGE")
         converted_datapoint = {
             "Timestamp": f"{point.interval.end_time}",
             "Library": labels["library"],
             "ApiName": labels["api"],
             "Op": op,
-            "ObjectSize": transfer_size,
+            "ObjectSize": object_size,
             "Crc32cEnabled": __str_bit_to_boolean(labels["crc32c_enabled"]),
             "MD5Enabled": __str_bit_to_boolean(labels["md5_enabled"]),
             "ElapsedTimeUs": elapsed_time_us,
@@ -234,77 +236,39 @@ def convert_timeseries_to_dataframe(timeseries):
     return df
 
 
-def write_stat_result(
-    client,
-    project_name,
-    op,
-    object_size,
-    crc32c_enabled,
-    md5_enabled,
-    result,
-    power_info,
-    interval=None,
-):
-    if interval is None:
-        interval = current_interval()
-    project_name_with_path = f"projects/{project_name}"
-    series = monitoring_v3.TimeSeries()
-    series.metric.type = (
-        "custom.googleapis.com/cloudprober/external/workload_7/stat_result"
-    )
-    series.metric.labels["op"] = op
-    series.metric.labels["object_size"] = f"{object_size}"
-    series.metric.labels["crc32c_enabled"] = __boolean_to_str_bit(crc32c_enabled)
-    series.metric.labels["md5_enabled"] = __boolean_to_str_bit(md5_enabled)
-    series.metric.labels["needed_samples"] = power_info["needed_samples"]
-    series.metric.labels["sample_count"] = power_info["sample_count"]
-    series.metric.labels["enough_samples"] = power_info["enough_samples"]
-    point = monitoring_v3.Point(
-        {
-            "interval": interval,
-            "value": {
-                "bool_value": result.loc[(op, object_size, crc32c_enabled, md5_enabled)]
-            },
-        }
-    )
-    series.points = [point]
-    client.create_time_series(name=project_name_with_path, time_series=[series])
-
-
 def print_header():
     print(
         "op,object_size,needed_samples,sample_count,enough_samples,effect,std_xml,std_json,mean_xml,mean_json,distribution_different,json_less_than_xml,effect_json_less_than_xml,winning_api,winning_api_without_power"
     )
 
 
-def winning_api_result(object_size, two_tailed, json_less_than_xml, enough_samples):
-  lesser_than = "XML"
-  greater_than = "JSON"
-  winning_api = None
-  if not two_tailed:
-    winning_api = "Identical"
-  elif two_tailed and json_less_than_xml:
-    winning_api = lesser_than
-  elif two_tailed and not json_less_than_xml:
-    winning_api = greater_than
-  if enough_samples == "False":
-    return "Need more samples", winning_api
-  else:
-    return winning_api, winning_api
+def winning_api_result(two_tailed, json_less_than_xml, enough_samples):
+    lesser_than = "XML"
+    greater_than = "JSON"
+    winning_api = None
+    if not two_tailed:
+        winning_api = "Identical"
+    elif two_tailed and json_less_than_xml:
+        winning_api = lesser_than
+    elif two_tailed and not json_less_than_xml:
+        winning_api = greater_than
+    if enough_samples == "False":
+        return "Need more samples", winning_api
+    else:
+        return winning_api, winning_api
 
 
-@functions_framework.http
-def run_workload_7_post_processing(_):
+def run_workload_7_post_processing():
     # Use project of deployed GCF
     project_name = os.environ["GCP_PROJECT"]
     monitoring_client = monitoring_v3.MetricServiceClient()
     interval_to_write = current_interval()
     timeseries_data = []
+    lookback_seconds = DAY_IN_SECONDS * 22
+    # Stick Jan 10 as current time
+    now_in_seconds = 1673373113
     for api in ["Xml", "Json"]:
-        for upload_type in [
-          "InsertObject",
-          "WriteObject"
-          ]:
+        for upload_type in ["InsertObject", "WriteObject"]:
             for size in [
                 8 * 1024,
                 256 * 1024,
@@ -313,29 +277,35 @@ def run_workload_7_post_processing(_):
                 1024 * 1024 * 128,
                 1024 * 1024 * 1024,
             ]:
-                timeseries_data.extend(get_timeseries_last_n_seconds(
+
+                timeseries_data.extend(
+                    get_timeseries_last_n_seconds(
                         monitoring_client,
                         project_name,
                         f"custom.googleapis.com/cloudprober/external/workload_7_{api}_{size}_{upload_type}/throughput",
-                        DAY_IN_SECONDS * 60
-                    ))
+                        lookback_seconds,
+                        now=now_in_seconds,
+                    )
+                )
             for range_size in [
                 1024 * 16,
                 1024 * 1024 * 2,
                 1024 * 1024 * 16,
             ]:
-                timeseries_data.extend(get_timeseries_last_n_seconds(
+                timeseries_data.extend(
+                    get_timeseries_last_n_seconds(
                         monitoring_client,
                         project_name,
                         f"custom.googleapis.com/cloudprober/external/workload_7_range_{api}_{range_size}_{upload_type}/throughput",
-                        DAY_IN_SECONDS * 60,
-                        "READ",  # Ignore Writes
-                        # now=1671178525
-                ))
+                        lookback_seconds,
+                        "READ",  # Read only
+                        now=now_in_seconds,
+                    )
+                )
+    print("Download Complete")
     full_dataframe = convert_timeseries_to_dataframe(timeseries_data)
-    full_dataframe.to_csv("out_last-60-with-timestamp.csv")
-    full_dataframe = pd.read_csv("out_last-60-with-timestamp.csv")
-    print(full_dataframe.Timestamp.describe())
+    full_dataframe.to_csv("results-checkpoint.csv")
+    full_dataframe = pd.read_csv("results-checkpoint.csv")
     print_header()
     for object_size, effect_fn in [
         (8 * 1024, acceptable_effect),
@@ -353,7 +323,7 @@ def run_workload_7_post_processing(_):
             try:
                 df = full_dataframe[
                     (full_dataframe.Op == op)
-                    & (full_dataframe.ObjectSize == object_size)
+                    & (full_dataframe.TransferSize == object_size)
                     & (full_dataframe.StatusCode == "OK")
                 ]
                 (
@@ -363,7 +333,11 @@ def run_workload_7_post_processing(_):
                     json_less_than_xml,
                 ) = apply_compare_throughput(df)
                 power_info = power_check(df, effect_fn)
-                (winning_api, winning_api_without_power) = winning_api_result(object_size, result, json_less_than_xml, power_info["enough_samples"])
+                (winning_api, winning_api_without_power) = winning_api_result(
+                    result,
+                    json_less_than_xml,
+                    power_info["enough_samples"],
+                )
                 if not result:
                     json_less_than_xml = "N/A"
                     effect_json_less_than_xml = "N/A"
@@ -384,7 +358,7 @@ def run_workload_7_post_processing(_):
             try:
                 df = full_dataframe[
                     (full_dataframe.Op == op)
-                    & (full_dataframe.ObjectSize == object_size)
+                    & (full_dataframe.TransferSize == object_size)
                     & (full_dataframe.StatusCode == "OK")
                 ]
                 (
@@ -394,10 +368,14 @@ def run_workload_7_post_processing(_):
                     json_less_than_xml,
                 ) = apply_compare_throughput(df)
                 power_info = power_check(df, effect_fn)
-                winning_api, winning_api_without_power = winning_api_result(object_size, result, json_less_than_xml, power_info["enough_samples"])
+                winning_api, winning_api_without_power = winning_api_result(
+                    result,
+                    json_less_than_xml,
+                    power_info["enough_samples"],
+                )
                 if not result:
-                  json_less_than_xml = "N/A"
-                  effect_json_less_than_xml = "N/A"
+                    json_less_than_xml = "N/A"
+                    effect_json_less_than_xml = "N/A"
                 print(
                     f"{op},{object_size},{power_info['needed_samples']},{power_info['sample_count']},{power_info['enough_samples']},{power_info['effect']},{power_info['std_xml']},{power_info['std_json']},{power_info['mean_xml']},{power_info['mean_json']},{result},{json_less_than_xml},{effect_json_less_than_xml},{winning_api},{winning_api_without_power}"
                 )
