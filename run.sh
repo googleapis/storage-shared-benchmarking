@@ -23,8 +23,9 @@ function print_usage() {
 Usage: run.sh [options]
   Options:
     -h|--help                   Print this help message
-    --workload_1=<lang>          Run workload 1 for <lang>
-    --workload_7                 Run workload 7
+    --workload_1=<lang>         Run workload 1 for <lang>
+    --workload_2=<lang>         Run workload 2 for <lang>
+    --workload_7                Run workload 7
     --project=<project>         Use <project> as project to use for workloads
     --bucket=<bucket>           Use <bucket> as bucket to use for workloads
     --api=<api>                 Use <api> when executing workloads
@@ -45,7 +46,7 @@ _EOM_
 
 PARSED="$(getopt -a \
   --options="h" \
-  --longoptions="help,workload_1:,workload_7,project:,bucket:,api:,samples:,object_size:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:" \
+  --longoptions="help,workload_1:,workload_2:,workload_7,project:,bucket:,api:,samples:,object_size:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:" \
   --name="run.sh" \
   -- "$@")"
 eval set -- "${PARSED}"
@@ -76,6 +77,10 @@ while true; do
       ;;
     --workload_1)
       WORKLOAD="workload_1_$2"
+      shift 2
+      ;;
+    --workload_2)
+      WORKLOAD="workload_2_$2"
       shift 2
       ;;
     --workload_7)
@@ -162,6 +167,18 @@ workload_1_golang() {
                        -min_size "${OBJECT_SIZE}" \
                        -max_size "${OBJECT_SIZE}" \
                        -api "${API}"
+}
+
+workload_2_nodejs() {
+  node /usr/bin/nodejs_benchmark_cli/build/build/internal-tooling/performanceTest.js --projectid "${PROJECT}" \
+                                                                                     --bucket "${BUCKET_NAME}" \
+                                                                                     --testtype "tm-chunked" \
+                                                                                     --small "${OBJECT_SIZE}" \
+                                                                                     --large "${OBJECT_SIZE}" \
+                                                                                     --chunksize "${RANGE_READ_SIZE}" \
+                                                                                     --numpromises "${WORKERS}" \
+                                                                                     --format "cloudmon" \
+                                                                                     --iterations "${SAMPLES}"
 }
 
 workload_7() {
