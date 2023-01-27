@@ -170,7 +170,7 @@ workload_1_golang() {
 }
 
 workload_2_nodejs() {
-  node /usr/bin/nodejs_benchmark_cli/build/build/internal-tooling/performanceTest.js --projectid "${PROJECT}" \
+  node /usr/bin/nodejs_benchmark_cli/build/internal-tooling/performanceTest.js --projectid "${PROJECT}" \
                                                                                      --bucket "${BUCKET_NAME}" \
                                                                                      --testtype "tm-chunked" \
                                                                                      --small "${OBJECT_SIZE}" \
