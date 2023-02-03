@@ -1,6 +1,10 @@
 name: Workload 7 AWK Postprocessing
 
-on: [push]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
 
 jobs:
   build:
