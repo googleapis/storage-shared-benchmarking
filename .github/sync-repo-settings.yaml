@@ -10,6 +10,6 @@ branchProtectionRules:
   requiresStrictStatusChecks: false
   requiredStatusCheckContexts:
     - cla/google
-    - Test AWK Script
-    - Lint with black
-    - Test with pytest
+    - Workload 7 AWK Postprocessing
+    - Workload 7 Cloud Function
+
