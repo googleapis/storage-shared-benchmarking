@@ -13,3 +13,4 @@ branchProtectionRules:
     - Test AWK Script
     - Lint with black
     - Test with pytest
+    
