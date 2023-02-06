@@ -10,6 +10,6 @@ branchProtectionRules:
   requiresStrictStatusChecks: false
   requiredStatusCheckContexts:
     - cla/google
-    - "Workload 7 AWK Postprocessing / build"
-    - "Workload 7 Cloud Function / build"
+    - "Workload 7 AWK Postprocessing / build (pull_request)"
+    - "Workload 7 Cloud Function / build (pull_request) "
 
