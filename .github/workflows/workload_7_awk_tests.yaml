@@ -8,6 +8,7 @@ on:
 
 jobs:
   build:
+    name: Workload 7 AWK Postprocessing
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
