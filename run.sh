@@ -52,6 +52,7 @@ PARSED="$(getopt -a \
 eval set -- "${PARSED}"
 # Get absolute path to this script to call relative files
 ROOT_PATH=$(dirname $(readlink -f "${BASH_SOURCE:-$0}"))
+NVM_HOME="/root/.nvm"
 WORKLOAD=
 PROJECT=
 BUCKET_NAME=
@@ -170,6 +171,7 @@ workload_1_golang() {
 }
 
 workload_2_nodejs() {
+  . $NVM_HOME/nvm.sh
   node /usr/bin/nodejs_benchmark_cli/build/internal-tooling/performanceTest.js --projectid "${PROJECT}" \
                                                                                      --bucket "${BUCKET_NAME}" \
                                                                                      --testtype "tm-chunked" \
