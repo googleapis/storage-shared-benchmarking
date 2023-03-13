@@ -26,7 +26,7 @@ Usage: run.sh [options]
     --workload_1=<lang>         Run workload 1 for <lang>
     --workload_2=<lang>         Run workload 2 for <lang>
     --workload_7                Run workload 7
-    --tm_chunk_download=<lang>  Run transfer manager chunk download for <lang>
+    --workload_8=<lang>         Run workload 8 for <lang>
     --project=<project>         Use <project> as project to use for workloads
     --bucket=<bucket>           Use <bucket> as bucket to use for workloads
     --api=<api>                 Use <api> when executing workloads
@@ -47,7 +47,7 @@ _EOM_
 
 PARSED="$(getopt -a \
   --options="h" \
-  --longoptions="help,workload_1:,workload_2:,workload_7,tm_chunk_download:,project:,bucket:,api:,samples:,object_size:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:" \
+  --longoptions="help,workload_1:,workload_2:,workload_7,workload_8:,project:,bucket:,api:,samples:,object_size:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:" \
   --name="run.sh" \
   -- "$@")"
 eval set -- "${PARSED}"
@@ -89,8 +89,8 @@ while true; do
       WORKLOAD="workload_7"
       shift 1
       ;;
-    --tm_chunk_download)
-      WORKLOAD="tm_chunk_download_$2"
+    --workload_8)
+      WORKLOAD="workload_8_$2"
       shift 2
       ;;
     --project)
@@ -198,7 +198,7 @@ workload_2_nodejs() {
                                                                                      --samples "${SAMPLES}"
 }
 
-tm_chunk_download_nodejs() {
+workload_8_nodejs() {
   . $NVM_HOME/nvm.sh
   node /usr/bin/nodejs_benchmark_cli/build/internal-tooling/performanceTest.js --project "${PROJECT}" \
                                                                                      --bucket "${BUCKET_NAME}" \
