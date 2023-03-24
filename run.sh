@@ -165,13 +165,11 @@ while true; do
 done
 
 workload_1_golang() {
-  golang_benchmark_cli -p "${PROJECT}" \
+  golang_benchmark_cli -project "${PROJECT}" \
                        -bucket "${BUCKET_NAME}" \
                        -workers "${WORKERS}" \
-                       -min_samples "${SAMPLES}" \
-                       -max_samples "${SAMPLES}" \
-                       -min_size "${OBJECT_SIZE}" \
-                       -max_size "${OBJECT_SIZE}" \
+                       -samples "${SAMPLES}" \
+                       -object_size "${OBJECT_SIZE}" \
                        -api "${API}"
 }
 
