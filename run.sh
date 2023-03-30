@@ -202,8 +202,7 @@ workload_2_python() {
   python3 /usr/bin/python_benchmark_cli/tests/perf/benchmarking.py --project "${PROJECT}" \
                                                                                      --bucket "${BUCKET_NAME}" \
                                                                                      --test_type "range" \
-                                                                                     --min_size "${OBJECT_SIZE}" \
-                                                                                     --max_size "${OBJECT_SIZE}" \
+                                                                                     --object_size "${OBJECT_SIZE}..${OBJECT_SIZE}" \
                                                                                      --range_read_size "${RANGE_READ_SIZE}" \
                                                                                      --workers "${WORKERS}" \
                                                                                      --output_type "cloud-monitoring" \
