@@ -196,6 +196,17 @@ workload_2_nodejs() {
                                                                                      --samples "${SAMPLES}"
 }
 
+workload_2_python() {
+  python3 /usr/bin/python_benchmark_cli/tests/perf/benchmarking.py --project "${PROJECT}" \
+                                                                                     --bucket "${BUCKET_NAME}" \
+                                                                                     --test_type "range" \
+                                                                                     --object_size "${OBJECT_SIZE}..${OBJECT_SIZE}" \
+                                                                                     --range_read_size "${RANGE_READ_SIZE}" \
+                                                                                     --workers "${WORKERS}" \
+                                                                                     --output_type "cloud-monitoring" \
+                                                                                     --samples "${SAMPLES}"
+}
+
 workload_8_nodejs() {
   . $NVM_HOME/nvm.sh
   node /usr/bin/nodejs_benchmark_cli/build/internal-tooling/performanceTest.js --project "${PROJECT}" \
