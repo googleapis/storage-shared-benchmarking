@@ -196,6 +196,16 @@ workload_2_nodejs() {
                                                                                      --samples "${SAMPLES}"
 }
 
+workload_1_python() {
+  python3 /usr/bin/python_benchmark_cli/tests/perf/benchmarking.py --project "${PROJECT}" \
+                                                                                     --bucket "${BUCKET_NAME}" \
+                                                                                     --test_type "w1r3" \
+                                                                                     --object_size "${OBJECT_SIZE}..${OBJECT_SIZE}" \
+                                                                                     --workers "${WORKERS}" \
+                                                                                     --output_type "cloud-monitoring" \
+                                                                                     --samples "${SAMPLES}"
+}
+
 workload_2_python() {
   python3 /usr/bin/python_benchmark_cli/tests/perf/benchmarking.py --project "${PROJECT}" \
                                                                                      --bucket "${BUCKET_NAME}" \
