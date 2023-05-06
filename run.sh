@@ -199,6 +199,7 @@ workload_2_nodejs() {
 workload_1_python() {
   python3 /usr/bin/python_benchmark_cli/tests/perf/benchmarking.py --project "${PROJECT}" \
                                                                                      --bucket "${BUCKET_NAME}" \
+                                                                                     --bucket_region "${REGION}" \
                                                                                      --test_type "w1r3" \
                                                                                      --object_size "${OBJECT_SIZE}..${OBJECT_SIZE}" \
                                                                                      --workers "${WORKERS}" \
@@ -209,6 +210,7 @@ workload_1_python() {
 workload_2_python() {
   python3 /usr/bin/python_benchmark_cli/tests/perf/benchmarking.py --project "${PROJECT}" \
                                                                                      --bucket "${BUCKET_NAME}" \
+                                                                                     --bucket_region "${REGION}" \
                                                                                      --test_type "range" \
                                                                                      --object_size "${OBJECT_SIZE}..${OBJECT_SIZE}" \
                                                                                      --range_read_size "${RANGE_READ_SIZE}" \
