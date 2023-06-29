@@ -27,6 +27,7 @@ Usage: run.sh [options]
     --workload_2=<lang>         Run workload 2 for <lang>
     --workload_6=<lang>         Run workload 6 for <lang>
     --workload_7                Run workload 7
+    --workload_8=<lang>         Run workload 8 for <lang>
     --project=<project>         Use <project> as project to use for workloads
     --bucket=<bucket>           Use <bucket> as bucket to use for workloads
     --api=<api>                 Use <api> when executing workloads
@@ -49,7 +50,7 @@ _EOM_
 
 PARSED="$(getopt -a \
   --options="h" \
-  --longoptions="help,workload_1:,workload_2:,workload_6:,workload_7,project:,bucket:,api:,samples:,object_size:,directory_num_objects:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:,timeout:" \
+  --longoptions="help,workload_1:,workload_2:,workload_6:,workload_7,workload_8:,project:,bucket:,api:,samples:,object_size:,directory_num_objects:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:,timeout:" \
   --name="run.sh" \
   -- "$@")"
 eval set -- "${PARSED}"
@@ -96,6 +97,10 @@ while true; do
     --workload_7)
       WORKLOAD="workload_7"
       shift 1
+      ;;
+    --workload_8)
+      WORKLOAD="workload_8_$2"
+      shift 2
       ;;
     --project)
       PROJECT="$2"
@@ -209,17 +214,62 @@ workload_6_golang() {
                        -directory_num_objects "${DIR_NUM_OBJECTS}"
 }
 
+workload_1_nodejs() {
+  . $NVM_HOME/nvm.sh
+  node /usr/bin/nodejs_benchmark_cli/build/internal-tooling/performanceTest.js --project "${PROJECT}" \
+                                                                                     --bucket "${BUCKET_NAME}" \
+                                                                                     --test_type "w1r3" \
+                                                                                     --object_size "${OBJECT_SIZE}..${OBJECT_SIZE}" \
+                                                                                     --workers "${WORKERS}" \
+                                                                                     --output_type "cloud-monitoring" \
+                                                                                     --samples "${SAMPLES}"
+}
+
 workload_2_nodejs() {
   . $NVM_HOME/nvm.sh
-  node /usr/bin/nodejs_benchmark_cli/build/internal-tooling/performanceTest.js --projectid "${PROJECT}" \
+  node /usr/bin/nodejs_benchmark_cli/build/internal-tooling/performanceTest.js --project "${PROJECT}" \
                                                                                      --bucket "${BUCKET_NAME}" \
-                                                                                     --testtype "tm-chunked" \
-                                                                                     --small "${OBJECT_SIZE}" \
-                                                                                     --large "${OBJECT_SIZE}" \
-                                                                                     --chunksize "${RANGE_READ_SIZE}" \
-                                                                                     --numpromises "${WORKERS}" \
-                                                                                     --format "cloudmon" \
-                                                                                     --iterations "${SAMPLES}"
+                                                                                     --test_type "range-read" \
+                                                                                     --object_size "${OBJECT_SIZE}..${OBJECT_SIZE}" \
+                                                                                     --range_read_size "${RANGE_READ_SIZE}" \
+                                                                                     --workers "${WORKERS}" \
+                                                                                     --output_type "cloud-monitoring" \
+                                                                                     --samples "${SAMPLES}"
+}
+
+workload_1_python() {
+  python3 /usr/bin/python_benchmark_cli/tests/perf/benchmarking.py --project "${PROJECT}" \
+                                                                                     --bucket "${BUCKET_NAME}" \
+                                                                                     --bucket_region "${REGION}" \
+                                                                                     --test_type "w1r3" \
+                                                                                     --object_size "${OBJECT_SIZE}..${OBJECT_SIZE}" \
+                                                                                     --workers "${WORKERS}" \
+                                                                                     --output_type "cloud-monitoring" \
+                                                                                     --samples "${SAMPLES}"
+}
+
+workload_2_python() {
+  python3 /usr/bin/python_benchmark_cli/tests/perf/benchmarking.py --project "${PROJECT}" \
+                                                                                     --bucket "${BUCKET_NAME}" \
+                                                                                     --bucket_region "${REGION}" \
+                                                                                     --test_type "range" \
+                                                                                     --object_size "${OBJECT_SIZE}..${OBJECT_SIZE}" \
+                                                                                     --range_read_size "${RANGE_READ_SIZE}" \
+                                                                                     --workers "${WORKERS}" \
+                                                                                     --output_type "cloud-monitoring" \
+                                                                                     --samples "${SAMPLES}"
+}
+
+workload_8_nodejs() {
+  . $NVM_HOME/nvm.sh
+  node /usr/bin/nodejs_benchmark_cli/build/internal-tooling/performanceTest.js --project "${PROJECT}" \
+                                                                                     --bucket "${BUCKET_NAME}" \
+                                                                                     --test_type "tm-chunked" \
+                                                                                     --object_size "${OBJECT_SIZE}..${OBJECT_SIZE}" \
+                                                                                     --range_read_size "${RANGE_READ_SIZE}" \
+                                                                                     --workers "${WORKERS}" \
+                                                                                     --output_type "cloud-monitoring" \
+                                                                                     --samples "${SAMPLES}"
 }
 
 workload_7() {
