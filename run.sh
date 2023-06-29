@@ -25,6 +25,7 @@ Usage: run.sh [options]
     -h|--help                   Print this help message
     --workload_1=<lang>         Run workload 1 for <lang>
     --workload_2=<lang>         Run workload 2 for <lang>
+    --workload_6=<lang>         Run workload 6 for <lang>
     --workload_7                Run workload 7
     --project=<project>         Use <project> as project to use for workloads
     --bucket=<bucket>           Use <bucket> as bucket to use for workloads
@@ -32,6 +33,7 @@ Usage: run.sh [options]
     --samples=<samples>         Number of samples to report
     --workers=<workers>         Number of workers to use when running workload
     --object_size=<object_size> Object size to use when running workload
+    --directory_num_objects     Number of objects in a directory (for workload 6)
     --region=<region>           Region used by workload7
     --upload_function=<fn>      Upload function name used by workload7
     --crc32c=<enabled>          Crc32c is enabled, disabled, random used by workload7
@@ -41,12 +43,13 @@ Usage: run.sh [options]
     --write_buffer_size=<int>   Used when write buffer should contain the entire object (large object multipart uploads)
     --read_offset_quantum=<int> Quantum read offset for range reads
     --range_read_size=<int>     Range size to read from object for range reads
+    --timeout=<duration>        Duration of time after which script should stop benchmarking and perform cleanup
 _EOM_
 }
 
 PARSED="$(getopt -a \
   --options="h" \
-  --longoptions="help,workload_1:,workload_2:,workload_7,project:,bucket:,api:,samples:,object_size:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:" \
+  --longoptions="help,workload_1:,workload_2:,workload_6:,workload_7,project:,bucket:,api:,samples:,object_size:,directory_num_objects:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:,timeout:" \
   --name="run.sh" \
   -- "$@")"
 eval set -- "${PARSED}"
@@ -58,6 +61,7 @@ PROJECT=
 BUCKET_NAME=
 API=
 OBJECT_SIZE=
+DIR_NUM_OBJECTS=
 SAMPLES=
 WORKERS=
 REGION=
@@ -69,6 +73,7 @@ MINIMUM_READ_OFFSET=
 MAXIMUM_READ_OFFSET=
 READ_OFFSET_QUANTUM=
 RANGE_READ_SIZE=
+TIMEOUT=
 FORWARD_ARGS=
 while true; do
   case "$1" in
@@ -82,6 +87,10 @@ while true; do
       ;;
     --workload_2)
       WORKLOAD="workload_2_$2"
+      shift 2
+      ;;
+    --workload_6)
+      WORKLOAD="workload_6_$2"
       shift 2
       ;;
     --workload_7)
@@ -148,6 +157,14 @@ while true; do
       RANGE_READ_SIZE="$2"
       shift 2
       ;;
+    --timeout)
+      TIMEOUT="$2"
+      shift 2
+      ;;
+    --directory_num_objects)
+      DIR_NUM_OBJECTS="$2"
+      shift 2
+      ;;
     --)
       # condition attempts to access $2 otherwise skip
       if [ ! -z "${2-}" ]; then
@@ -165,7 +182,31 @@ workload_1_golang() {
                        -workers "${WORKERS}" \
                        -samples "${SAMPLES}" \
                        -object_size "${OBJECT_SIZE}" \
-                       -api "${API}"
+                       -api "${API}" \
+                       -timeout "${TIMEOUT}"
+}
+
+workload_2_golang() {
+  golang_benchmark_cli -project "${PROJECT}" \
+                       -bucket "${BUCKET_NAME}" \
+                       -workers "${WORKERS}" \
+                       -samples "${SAMPLES}" \
+                       -object_size "${OBJECT_SIZE}" \
+                       -api "${API}" \
+                       -timeout "${TIMEOUT}" \
+                       -range_read_size "${RANGE_READ_SIZE}"
+}
+
+workload_6_golang() {
+  golang_benchmark_cli -project "${PROJECT}" \
+                       -bucket "${BUCKET_NAME}" \
+                       -workers "${WORKERS}" \
+                       -samples "${SAMPLES}" \
+                       -object_size "${OBJECT_SIZE}" \
+                       -api "${API}" \
+                       -timeout "${TIMEOUT}" \
+                       -workload 6 \
+                       -directory_num_objects "${DIR_NUM_OBJECTS}"
 }
 
 workload_2_nodejs() {
