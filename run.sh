@@ -273,12 +273,12 @@ workload_8_nodejs() {
 }
 
 workload_1_java() {
-  java -jar storage-shared-benchmarking-0.0.1-SNAPSHOT.jar -project="${PROJECT}" \
+  java -jar /usr/bin/java-cli/storage-shared-benchmarking-0.0.1-SNAPSHOT.jar -project="${PROJECT}" \
                                                                 -bucket="${BUCKET_NAME}" \
                                                                 -test_type="w1r3" \
                                                                 -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
                                                                 -workers="${WORKERS}" \
-                                                                -samples = "${SAMPLES}"
+                                                                -samples="${SAMPLES}"
 }
 
 workload_7() {
