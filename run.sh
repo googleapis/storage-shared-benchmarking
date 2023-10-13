@@ -272,6 +272,15 @@ workload_8_nodejs() {
                                                                                      --samples "${SAMPLES}"
 }
 
+workload_1_java() {
+  java -jar /usr/bin/java-cli -project="${PROJECT}" \
+                                -bucket="${BUCKET_NAME}" \
+                                -test_type="w1r3" \
+                                -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
+                                -workers="${WORKERS}" \
+                                -samples="${SAMPLES}"
+}
+
 workload_7() {
   local OPTIONAL_BUFFER_SIZE_ARGS=
   if [ ! -z $WRITE_BUFFER_SIZE ]; then
