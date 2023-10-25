@@ -26,6 +26,7 @@ Usage: run.sh [options]
     --workload_1=<lang>         Run workload 1 for <lang>
     --workload_2=<lang>         Run workload 2 for <lang>
     --workload_6=<lang>         Run workload 6 for <lang>
+    --workload_4=<lang>         Run workload 4 for <lang>
     --workload_7                Run workload 7
     --workload_8=<lang>         Run workload 8 for <lang>
     --project=<project>         Use <project> as project to use for workloads
@@ -50,7 +51,7 @@ _EOM_
 
 PARSED="$(getopt -a \
   --options="h" \
-  --longoptions="help,workload_1:,workload_2:,workload_6:,workload_7,workload_8:,project:,bucket:,api:,samples:,object_size:,directory_num_objects:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:,timeout:" \
+  --longoptions="help,workload_1:,workload_2:,workload_4:,workload_6:,workload_7,workload_8:,project:,bucket:,api:,samples:,object_size:,directory_num_objects:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:,timeout:" \
   --name="run.sh" \
   -- "$@")"
 eval set -- "${PARSED}"
@@ -88,6 +89,10 @@ while true; do
       ;;
     --workload_2)
       WORKLOAD="workload_2_$2"
+      shift 2
+      ;;
+    --workload_4)
+      WORKLOAD="workload_4_$2"
       shift 2
       ;;
     --workload_6)
@@ -276,6 +281,16 @@ workload_1_java() {
   java -jar /usr/bin/java-cli -project="${PROJECT}" \
                                 -bucket="${BUCKET_NAME}" \
                                 -test_type="w1r3" \
+                                -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
+                                -workers="${WORKERS}" \
+                                -samples="${SAMPLES}"
+}
+
+workload_4_java() {
+  java -jar /usr/bin/java-cli -project="${PROJECT}" \
+                                -bucket="java-storage-grpc-${BUCKET_NAME}" \
+                                -test_type="w1r3-grpc-dp" \
+                                -api "${API}" \
                                 -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
                                 -workers="${WORKERS}" \
                                 -samples="${SAMPLES}"
