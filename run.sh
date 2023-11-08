@@ -216,7 +216,7 @@ workload_6_golang() {
 
 workload_1_nodejs() {
   . $NVM_HOME/nvm.sh
-  node /usr/bin/nodejs_benchmark_cli/build/internal-tooling/performanceTest.js --project "${PROJECT}" \
+  node /usr/bin/nodejs_benchmark_cli/build/cjs/internal-tooling/performanceTest.js --project "${PROJECT}" \
                                                                                      --bucket "${BUCKET_NAME}" \
                                                                                      --test_type "w1r3" \
                                                                                      --object_size "${OBJECT_SIZE}..${OBJECT_SIZE}" \
@@ -227,7 +227,7 @@ workload_1_nodejs() {
 
 workload_2_nodejs() {
   . $NVM_HOME/nvm.sh
-  node /usr/bin/nodejs_benchmark_cli/build/internal-tooling/performanceTest.js --project "${PROJECT}" \
+  node /usr/bin/nodejs_benchmark_cli/build/cjs/internal-tooling/performanceTest.js --project "${PROJECT}" \
                                                                                      --bucket "${BUCKET_NAME}" \
                                                                                      --test_type "range-read" \
                                                                                      --object_size "${OBJECT_SIZE}..${OBJECT_SIZE}" \
