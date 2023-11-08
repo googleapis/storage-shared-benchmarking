@@ -91,7 +91,7 @@ while true; do
       shift 2
       ;;
     --workload_5)
-      WORKLOAD="workload_5_$5"
+      WORKLOAD="workload_5_$2"
       shift 2
       ;;
     --workload_6)
