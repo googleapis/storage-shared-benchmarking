@@ -50,7 +50,7 @@ _EOM_
 
 PARSED="$(getopt -a \
   --options="h" \
-  --longoptions="help,workload_1:,workload_2:,workload_6:,workload_7,workload_8:,project:,bucket:,api:,samples:,object_size:,directory_num_objects:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:,timeout:" \
+  --longoptions="help,workload_1:,workload_2:,workload_5:,workload_6:,workload_7,workload_8:,project:,bucket:,api:,samples:,object_size:,directory_num_objects:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:,timeout:" \
   --name="run.sh" \
   -- "$@")"
 eval set -- "${PARSED}"
@@ -88,6 +88,10 @@ while true; do
       ;;
     --workload_2)
       WORKLOAD="workload_2_$2"
+      shift 2
+      ;;
+    --workload_5)
+      WORKLOAD="workload_5_$5"
       shift 2
       ;;
     --workload_6)
@@ -216,7 +220,7 @@ workload_6_golang() {
 
 workload_1_nodejs() {
   . $NVM_HOME/nvm.sh
-  node /usr/bin/nodejs_benchmark_cli/build/internal-tooling/performanceTest.js --project "${PROJECT}" \
+  node /usr/bin/nodejs_benchmark_cli/build/cjs/internal-tooling/performanceTest.js --project "${PROJECT}" \
                                                                                      --bucket "${BUCKET_NAME}" \
                                                                                      --test_type "w1r3" \
                                                                                      --object_size "${OBJECT_SIZE}..${OBJECT_SIZE}" \
@@ -227,7 +231,7 @@ workload_1_nodejs() {
 
 workload_2_nodejs() {
   . $NVM_HOME/nvm.sh
-  node /usr/bin/nodejs_benchmark_cli/build/internal-tooling/performanceTest.js --project "${PROJECT}" \
+  node /usr/bin/nodejs_benchmark_cli/build/cjs/internal-tooling/performanceTest.js --project "${PROJECT}" \
                                                                                      --bucket "${BUCKET_NAME}" \
                                                                                      --test_type "range-read" \
                                                                                      --object_size "${OBJECT_SIZE}..${OBJECT_SIZE}" \
@@ -235,6 +239,18 @@ workload_2_nodejs() {
                                                                                      --workers "${WORKERS}" \
                                                                                      --output_type "cloud-monitoring" \
                                                                                      --samples "${SAMPLES}"
+}
+
+workload_5_nodejs() {
+  . $NVM_HOME/nvm.sh
+  node /usr/bin/nodejs_benchmark_cli/build/cjs/internal-tooling/performanceTest.js --project "${PROJECT}" \
+                                                                                     --bucket "${BUCKET_NAME}" \
+                                                                                     --test_type "many-small" \
+                                                                                     --object_size "${OBJECT_SIZE}..${OBJECT_SIZE}" \
+                                                                                     --workers "${WORKERS}" \
+                                                                                     --output_type "cloud-monitoring" \
+                                                                                     --samples "${SAMPLES}" \
+                                                                                     --num_objects "${DIR_NUM_OBJECTS}"
 }
 
 workload_1_python() {
