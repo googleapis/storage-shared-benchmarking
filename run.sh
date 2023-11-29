@@ -283,14 +283,14 @@ workload_1_java() {
                                 -test_type="w1r3" \
                                 -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
                                 -workers="${WORKERS}" \
-                                -samples="${SAMPLES}"
+                                -samples="${SAMPLES}"S
 }
 
 workload_4_java() {
   java -jar /usr/bin/java-cli -project="${PROJECT}" \
                                 -bucket="${BUCKET_NAME}" \
                                 -test_type="w1r3-grpc-dp" \
-                                -api "GRPC" \
+                                -api "${API}" \
                                 -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
                                 -workers="${WORKERS}" \
                                 -samples="${SAMPLES}"
