@@ -288,7 +288,7 @@ workload_1_java() {
 
 workload_4_java() {
   java -jar /usr/bin/java-cli -project="${PROJECT}" \
-                                -bucket="java-storage-grpc-${BUCKET_NAME}" \
+                                -bucket="${BUCKET_NAME}" \
                                 -test_type="w1r3-grpc-dp" \
                                 -api "${API}" \
                                 -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
