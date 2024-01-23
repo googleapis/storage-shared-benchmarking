@@ -283,7 +283,8 @@ workload_1_java() {
                                 -test_type="w1r3" \
                                 -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
                                 -workers="${WORKERS}" \
-                                -samples="${SAMPLES}"
+                                -samples="${SAMPLES}" \
+                                -warmup="15"
 }
 
 workload_4_java() {
@@ -293,7 +294,8 @@ workload_4_java() {
                                 -api "${API}" \
                                 -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
                                 -workers="${WORKERS}" \
-                                -samples="${SAMPLES}"
+                                -samples="${SAMPLES}" \
+                                -warmup="15"
 }
 
 workload_7() {
