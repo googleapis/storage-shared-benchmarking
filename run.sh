@@ -284,7 +284,7 @@ workload_1_java() {
                                 -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
                                 -workers="${WORKERS}" \
                                 -samples="${SAMPLES}" \
-                                -warmup="60"
+                                -warmup="300"
 }
 
 workload_4_java() {
@@ -295,7 +295,7 @@ workload_4_java() {
                                 -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
                                 -workers="${WORKERS}" \
                                 -samples="${SAMPLES}" \
-                                -warmup="60"
+                                -warmup="300"
 }
 
 workload_7() {
