@@ -287,17 +287,6 @@ workload_1_java() {
                                 -warmup="240"
 }
 
-workload_4_java() {
-  java -jar /usr/bin/java-cli -project="${PROJECT}" \
-                                -bucket="${BUCKET_NAME}" \
-                                -test_type="w1r3-grpc-dp" \
-                                -api "${API}" \
-                                -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
-                                -workers="${WORKERS}" \
-                                -samples="${SAMPLES}" \
-                                -warmup="240"
-}
-
 workload_7() {
   local OPTIONAL_BUFFER_SIZE_ARGS=
   if [ ! -z $WRITE_BUFFER_SIZE ]; then
