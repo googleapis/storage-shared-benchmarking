@@ -281,6 +281,7 @@ workload_1_java() {
   java -jar /usr/bin/java-cli -project="${PROJECT}" \
                                 -bucket="${BUCKET_NAME}" \
                                 -test_type="w1r3" \
+                                -api="${API}" \
                                 -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
                                 -workers="${WORKERS}" \
                                 -samples="${SAMPLES}" \
