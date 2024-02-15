@@ -52,7 +52,7 @@ _EOM_
 
 PARSED="$(getopt -a \
   --options="h" \
-  --longoptions="help,workload_1:,workload_2:,workload_4:,workload_6:,workload_7,workload_8:,project:,bucket:,api:,samples:,object_size:,directory_num_objects:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:,timeout:,warmup:" \
+  --longoptions="help,workload_1:,workload_2:,workload_4:,workload_6:,workload_7,workload_8:,workload_bidi:,workload_nobidi:,project:,bucket:,api:,samples:,object_size:,directory_num_objects:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:,timeout:,warmup:" \
   --name="run.sh" \
   -- "$@")"
 eval set -- "${PARSED}"
@@ -107,6 +107,14 @@ while true; do
       ;;
     --workload_8)
       WORKLOAD="workload_8_$2"
+      shift 2
+      ;;
+    --workload_bidi)
+      WORKLOAD="workload_bidi_$2"
+      shift 2
+      ;;
+    --workload_nobidi)
+      WORKLOAD="workload_nobidi_$2"
       shift 2
       ;;
     --project)
@@ -292,6 +300,26 @@ workload_1_java() {
                                 -workers="${WORKERS}" \
                                 -samples="${SAMPLES}" \
                                 -warmup="${WARMUP}"
+}
+
+workload_bidi_java() {
+  java -jar /usr/bin/java-cli -project="${PROJECT}" \
+                                -bucket="${BUCKET_NAME}" \
+                                -test_type="bidi" \
+                                -api="${API}" \
+                                -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
+                                -workers="${WORKERS}" \
+                                -samples="${SAMPLES}" 
+}
+
+workload_nobidi_java() {
+  java -jar /usr/bin/java-cli -project="${PROJECT}" \
+                                -bucket="${BUCKET_NAME}" \
+                                -test_type="default-nobidi" \
+                                -api="${API}" \
+                                -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
+                                -workers="${WORKERS}" \
+                                -samples="${SAMPLES}" 
 }
 
 workload_7() {
