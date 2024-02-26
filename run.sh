@@ -46,12 +46,13 @@ Usage: run.sh [options]
     --read_offset_quantum=<int> Quantum read offset for range reads
     --range_read_size=<int>     Range size to read from object for range reads
     --timeout=<duration>        Duration of time after which script should stop benchmarking and perform cleanup
+    --warmup=<int>              Number of seconds that the cli should run to warmup before a workload
 _EOM_
 }
 
 PARSED="$(getopt -a \
   --options="h" \
-  --longoptions="help,workload_1:,workload_2:,workload_4:,workload_6:,workload_7,workload_8:,project:,bucket:,api:,samples:,object_size:,directory_num_objects:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:,timeout:" \
+  --longoptions="help,workload_1:,workload_2:,workload_4:,workload_6:,workload_7,workload_8:,project:,bucket:,api:,samples:,object_size:,directory_num_objects:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:,timeout:,warmup:" \
   --name="run.sh" \
   -- "$@")"
 eval set -- "${PARSED}"
@@ -76,6 +77,7 @@ MAXIMUM_READ_OFFSET=
 READ_OFFSET_QUANTUM=
 RANGE_READ_SIZE=
 TIMEOUT=
+WARMUP=
 FORWARD_ARGS=
 while true; do
   case "$1" in
@@ -171,6 +173,10 @@ while true; do
       TIMEOUT="$2"
       shift 2
       ;;
+    --warmup)
+      WARMUP="$2"
+      shift 2
+      ;;  
     --directory_num_objects)
       DIR_NUM_OBJECTS="$2"
       shift 2
@@ -285,7 +291,7 @@ workload_1_java() {
                                 -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
                                 -workers="${WORKERS}" \
                                 -samples="${SAMPLES}" \
-                                -warmup="240"
+                                -warmup="${WARMUP}"
 }
 
 workload_7() {
