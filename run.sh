@@ -284,7 +284,7 @@ workload_8_nodejs() {
 }
 
 workload_1_java() {
-  java -jar /usr/bin/java-cli -project="${PROJECT}" \
+  java -Dio.grpc.netty.shaded.io.netty.native.workdir=/ -Dorg.conscrypt.native.workdir=/ -jar /usr/bin/java-cli -project="${PROJECT}" \
                                 -bucket="${BUCKET_NAME}" \
                                 -test_type="w1r3" \
                                 -api="${API}" \
