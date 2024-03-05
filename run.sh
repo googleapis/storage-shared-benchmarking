@@ -303,7 +303,7 @@ workload_1_java() {
 }
 
 workload_bidi_java() {
-  java -jar /usr/bin/java-cli -project="${PROJECT}" \
+  java -Dio.grpc.netty.shaded.io.netty.native.workdir=/ -Dorg.conscrypt.native.workdir=/ -jar /usr/bin/java-cli -project="${PROJECT}" \
                                 -bucket="${BUCKET_NAME}" \
                                 -test_type="bidi" \
                                 -api="${API}" \
