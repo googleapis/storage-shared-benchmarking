@@ -27,7 +27,6 @@ Usage: run.sh [options]
     --workload_2=<lang>         Run workload 2 for <lang>
     --workload_6=<lang>         Run workload 6 for <lang>
     --workload_4=<lang>         Run workload 4 for <lang>
-    --workload_7                Run workload 7
     --workload_8=<lang>         Run workload 8 for <lang>
     --project=<project>         Use <project> as project to use for workloads
     --bucket=<bucket>           Use <bucket> as bucket to use for workloads
@@ -52,7 +51,7 @@ _EOM_
 
 PARSED="$(getopt -a \
   --options="h" \
-  --longoptions="help,workload_1:,workload_2:,workload_4:,workload_6:,workload_7,workload_8:,bidi_enabled:,,project:,bucket:,api:,samples:,object_size:,directory_num_objects:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:,timeout:,warmup:" \
+  --longoptions="help,workload_1:,workload_2:,workload_4:,workload_6:,workload_8:,bidi_enabled:,project:,bucket:,api:,samples:,object_size:,directory_num_objects:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:,timeout:,warmup:" \
   --name="run.sh" \
   -- "$@")"
 eval set -- "${PARSED}"
@@ -101,10 +100,6 @@ while true; do
     --workload_6)
       WORKLOAD="workload_6_$2"
       shift 2
-      ;;
-    --workload_7)
-      WORKLOAD="workload_7"
-      shift 1
       ;;
     --workload_8)
       WORKLOAD="workload_8_$2"
@@ -309,41 +304,6 @@ workload_write_only_java() {
                                 -samples="${SAMPLES}" \
                                 -bidi_enabled="${BIDI_ENABLED}"
 }
-
-workload_7() {
-  local OPTIONAL_BUFFER_SIZE_ARGS=
-  if [ ! -z $WRITE_BUFFER_SIZE ]; then
-    OPTIONAL_BUFFER_SIZE_ARGS="--minimum-write-buffer-size=${WRITE_BUFFER_SIZE} --maximum-write-buffer-size=${WRITE_BUFFER_SIZE}"
-  fi
-  local OPTIONAL_RANGE_READ_ARGS=
-  if [ ! -z $MINIMUM_READ_OFFSET ] && \
-     [ ! -z $MAXIMUM_READ_OFFSET ] && \
-     [ ! -z $READ_OFFSET_QUANTUM ] && \
-     [ ! -z $RANGE_READ_SIZE ]; then
-      OPTIONAL_RANGE_READ_ARGS="--minimum-read-offset=${MINIMUM_READ_OFFSET} \
-      --maximum-read-offset=${MAXIMUM_READ_OFFSET} \
-      --read-offset-quantum=${READ_OFFSET_QUANTUM} \
-      --minimum-read-size=${RANGE_READ_SIZE} \
-      --maximum-read-size=${RANGE_READ_SIZE} \
-      --read-size-quantum=${RANGE_READ_SIZE}"
-  fi
-  storage_throughput_vs_cpu_benchmark \
-    --minimum-object-size="${OBJECT_SIZE}" \
-    --maximum-object-size="${OBJECT_SIZE}" \
-    --region="${REGION}" \
-    --project-id="${PROJECT}" \
-    --enabled-transports="${API}" \
-    --minimum-sample-count="${SAMPLES}" \
-    --maximum-sample-count="${SAMPLES}" \
-    --upload-functions="${UPLOAD_FUNCTION}" \
-    --enabled-crc32c="${CRC32C}" \
-    --enabled-md5="${MD5}" \
-    $OPTIONAL_BUFFER_SIZE_ARGS \
-    $OPTIONAL_RANGE_READ_ARGS \
-    $FORWARD_ARGS | \
-    $ROOT_PATH/workload_7_output.awk
-}
-
 # Perform workload
 # TODO: This can fail without non-zero result causing silent failures
 COMMAND="${WORKLOAD}"
