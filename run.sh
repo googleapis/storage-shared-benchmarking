@@ -51,7 +51,7 @@ _EOM_
 
 PARSED="$(getopt -a \
   --options="h" \
-  --longoptions="help,workload_1:,workload_2:,workload_4:,workload_6:,workload_8:,project:,bucket:,api:,samples:,object_size:,directory_num_objects:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:,timeout:,warmup:" \
+  --longoptions="help,workload_1:,workload_2:,workload_4:,workload_6:,workload_8:,bidi_enabled:,project:,bucket:,api:,samples:,object_size:,directory_num_objects:,samples:,workers:,region:,upload_function:,crc32c:,md5:,minimum_read_offset:,maximum_read_offset:,read_offset_quantum:,write_buffer_size:,range_read_size:,timeout:,warmup:" \
   --name="run.sh" \
   -- "$@")"
 eval set -- "${PARSED}"
@@ -59,6 +59,7 @@ eval set -- "${PARSED}"
 ROOT_PATH=$(dirname $(readlink -f "${BASH_SOURCE:-$0}"))
 NVM_HOME="/root/.nvm"
 WORKLOAD=
+BIDI_ENABLED=
 PROJECT=
 BUCKET_NAME=
 API=
@@ -102,6 +103,10 @@ while true; do
       ;;
     --workload_8)
       WORKLOAD="workload_8_$2"
+      shift 2
+      ;;
+    --bidi_enabled)
+      BIDI_ENABLED="$2"
       shift 2
       ;;
     --project)
@@ -289,6 +294,16 @@ workload_1_java() {
                                 -warmup="${WARMUP}"
 }
 
+workload_write_only_java() {
+  java -Dio.grpc.netty.shaded.io.netty.native.workdir=/ -Dorg.conscrypt.native.workdir=/ -jar /usr/bin/java-cli -project="${PROJECT}" \
+                                -bucket="${BUCKET_NAME}" \
+                                -test_type="write-only" \
+                                -api="${API}" \
+                                -object_size="${OBJECT_SIZE}..${OBJECT_SIZE}" \
+                                -workers="${WORKERS}" \
+                                -samples="${SAMPLES}" \
+                                -bidi_enabled="${BIDI_ENABLED}"
+}
 # Perform workload
 # TODO: This can fail without non-zero result causing silent failures
 COMMAND="${WORKLOAD}"
