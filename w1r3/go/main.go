@@ -47,10 +47,9 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/trace"
 
-	// debugging
+	"google.golang.org/api/googleapi"
 
 	// Install google-c2p resolver, which is required for direct path.
-
 	_ "google.golang.org/grpc/xds/googledirectpath"
 
 	// Install RLS load balancer policy, which is needed for gRPC RLS.
@@ -343,15 +342,20 @@ func resumableUpload(ctx context.Context, client *storage.Client, bucketName str
 	bucket := client.Bucket(bucketName)
 	o := bucket.Object(objectName)
 	objectWriter := o.If(storage.Conditions{DoesNotExist: true}).NewWriter(ctx)
-	// If the data is smaller than an upload quantum, there is no way to force
-	// the SDK to use resumable uploads. For larger uploads we can force the
-	// SDK to flush data if we make the chunk size small enough. We don't want
-	// to make it too small, as that seems unfair when comparing to other
-	// languages.
-	if len(data) > uploadQuantum {
-		objectWriter.ChunkSize = uploadQuantum
-	} else {
+	// Pick a chunk size that (almost always) is small enough to force a
+	// resumable upload.
+	if len(data) > googleapi.DefaultUploadChunkSize {
+		// We don't want to make it too small, as that seems unfair when
+		// comparing to other languages.
+		objectWriter.ChunkSize = googleapi.DefaultUploadChunkSize
+	} else if len(data) > uploadQuantum {
+		// If we make the chunk size smaller than the data, the SDK will flush
+		// at least one chunk and will need to create a resumable upload.
 		objectWriter.ChunkSize = min(2*MiB, len(data)-uploadQuantum)
+	} else {
+		// If the data is smaller than an upload quantum, there is no way to
+		// force the SDK to use resumable uploads.
+		objectWriter.ChunkSize = uploadQuantum
 	}
 	offset := 0
 	for offset < len(data) {
