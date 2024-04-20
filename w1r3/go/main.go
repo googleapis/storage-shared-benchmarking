@@ -50,21 +50,25 @@ import (
 	// debugging
 
 	// Install google-c2p resolver, which is required for direct path.
+
 	_ "google.golang.org/grpc/xds/googledirectpath"
+
 	// Install RLS load balancer policy, which is needed for gRPC RLS.
 	_ "google.golang.org/grpc/balancer/rls"
 )
 
 const (
-	JSON              = "JSON"
-	GRPC_CFE          = "GRPC+CFE"
-	GRPC_DP           = "GRPC+DP"
-	singleShot        = "SINGLE-SHOT"
-	resumable         = "RESUMABLE"
-	KB                = 1000
-	MB                = 1000 * KB
-	KiB               = 1024
-	MiB               = 1024 * KiB
+	JSON       = "JSON"
+	GRPC_CFE   = "GRPC+CFE"
+	GRPC_DP    = "GRPC+DP"
+	singleShot = "SINGLE-SHOT"
+	resumable  = "RESUMABLE"
+	KB         = 1000
+	MB         = 1000 * KB
+	KiB        = 1024
+	MiB        = 1024 * KiB
+	// The minimum upload quantum supported by Google Cloud Storage
+	uploadQuantum     = 256 * KiB
 	appName           = "w1r3"
 	defaultSampleRate = 0.05
 )
@@ -115,8 +119,7 @@ func main() {
 	}
 
 	ctx := context.Background()
-	cleanupProfiler := enableProfiler(*projectID, *deployment, *profileVersion)
-	defer cleanupProfiler()
+	enableProfiler(*projectID, *deployment, *profileVersion)
 	cleanupTracing := enableTracing(ctx, *tracingRate, *projectID)
 	defer cleanupTracing()
 	cleanupMeter := enableMeter(ctx, *projectID, instance.String())
@@ -182,7 +185,7 @@ func main() {
 type Config struct {
 	transports  []Transport
 	uploaders   []Uploader
-	objectSizes intFlags
+	objectSizes []int64
 	bucketName  string
 	deployment  string
 	instance    string
@@ -200,14 +203,7 @@ func worker(ctx context.Context, config Config) {
 		metric.WithExplicitBucketBoundaries(histogramBoundaries()...),
 	)
 	if err != nil {
-		log.Fatalf("Cannot create ssb/w1r3/latency histogram")
-	}
-	get_version := func(name string) string {
-		v, ok := config.versions[name]
-		if ok {
-			return v
-		}
-		return "unknown"
+		log.Fatalf("Cannot create ssb/w1r3/latency histogram: %v", err)
 	}
 
 	data := make([]byte, slices.Max(config.objectSizes))
@@ -232,71 +228,97 @@ func worker(ctx context.Context, config Config) {
 			attribute.String("ssb.deployment", config.deployment),
 			attribute.String("ssb.instance", config.instance),
 			attribute.String("ssb.version", benchmarkVersion()),
-			attribute.String("ssb.version.sdk", get_version("cloud.google.com/go/storage")),
-			attribute.String("ssb.version.grpc", get_version("google.golang.org/grpc")),
-			attribute.String("ssb.version.protobuf", get_version("google.golang.org/protobuf")),
-			attribute.String("ssb.version.http", get_version("golang.org/x/net")),
+			attribute.String("ssb.version.sdk", getVersion(config, "cloud.google.com/go/storage")),
+			attribute.String("ssb.version.grpc", getVersion(config, "google.golang.org/grpc")),
+			attribute.String("ssb.version.protobuf", getVersion(config, "google.golang.org/protobuf")),
+			attribute.String("ssb.version.http", getVersion(config, "golang.org/x/net")),
 		}
 
 		spanContext, span := tracer.Start(
 			ctx, "ssb::iteration", trace.WithAttributes(
 				append([]attribute.KeyValue{attribute.Int("ssb.iteration", i)}, commonAttributes...)...))
 
-		uploadContext, uploadSpan := tracer.Start(
-			spanContext, "ssb::upload", trace.WithAttributes(
-				append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)}, commonAttributes...)...))
-
-		upload_start := time.Now()
-		objectHandle, err := uploader.uploader(uploadContext, transport.client, config.bucketName, objectName, data[0:objectSize])
+		objectHandle, err := uploadStep(spanContext, tracer, histogram, commonAttributes,
+			config, uploader, transport, objectName, data[0:objectSize])
 		if err != nil {
-			uploadSpan.SetStatus(codes.Error, "error during upload")
-			uploadSpan.RecordError(err)
-			uploadSpan.End()
 			span.End()
 			continue
 		}
-		duration := time.Since(upload_start)
-		histogram.Record(uploadContext, duration.Milliseconds(), metric.WithAttributes(
-			append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)}, commonAttributes...)...))
-		uploadSpan.End()
 
-		discard := make([]byte, 2*MiB)
-		for r := range 3 {
-			op := fmt.Sprintf("READ[%d]", r)
-			downloadContext, downloadSpan := tracer.Start(
-				spanContext, "ssb::download", trace.WithAttributes(
-					append([]attribute.KeyValue{attribute.String("ssb.op", op)}, commonAttributes...)...))
-
-			download_start := time.Now()
-			objectReader, err := objectHandle.NewReader(downloadContext)
-			if err != nil {
-				log.Printf("Error in ssb::upload %d transport %s size %d: %v", i, transport.name, objectSize, err)
-				downloadSpan.SetStatus(codes.Error, "error while opening reader")
-				downloadSpan.RecordError(err)
-				downloadSpan.End()
-				continue
-			}
-			for {
-				_, err := objectReader.Read(discard)
-				if err != nil {
-					break
-				}
-			}
-			err = objectReader.Close()
-			if err != nil {
-				downloadSpan.SetStatus(codes.Error, "error while closing reader")
-				downloadSpan.RecordError(err)
-			}
-			downloadSpan.End()
-			duration := time.Since(download_start)
-			histogram.Record(downloadContext, duration.Milliseconds(), metric.WithAttributes(
-				append([]attribute.KeyValue{attribute.String("ssb.op", op)}, commonAttributes...)...))
-		}
+		downloadStep(spanContext, tracer, histogram, commonAttributes, objectHandle)
 
 		d := objectHandle.Retryer(storage.WithPolicy(storage.RetryAlways))
 		d.Delete(spanContext)
 		span.End()
 	}
+}
+
+func uploadStep(ctx context.Context, tracer trace.Tracer,
+	histogram metric.Int64Histogram,
+	commonAttributes []attribute.KeyValue,
+	config Config,
+	uploader Uploader,
+	transport Transport,
+	objectName string,
+	data []byte) (*storage.ObjectHandle, error) {
+	uploadContext, uploadSpan := tracer.Start(
+		ctx, "ssb::upload", trace.WithAttributes(
+			append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)}, commonAttributes...)...))
+
+	upload_start := time.Now()
+	objectHandle, err := uploader.uploader(uploadContext, transport.client, config.bucketName, objectName, data)
+	if err != nil {
+		uploadSpan.SetStatus(codes.Error, "error during upload")
+		uploadSpan.RecordError(err)
+		uploadSpan.End()
+		return nil, err
+	}
+	duration := time.Since(upload_start)
+	histogram.Record(uploadContext, duration.Milliseconds(), metric.WithAttributes(
+		append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)}, commonAttributes...)...))
+	uploadSpan.End()
+	return objectHandle, nil
+}
+
+func downloadStep(ctx context.Context, tracer trace.Tracer,
+	histogram metric.Int64Histogram,
+	commonAttributes []attribute.KeyValue,
+	objectHandle *storage.ObjectHandle) {
+	for r := range 3 {
+		op := fmt.Sprintf("READ[%d]", r)
+		downloadContext, downloadSpan := tracer.Start(
+			ctx, "ssb::download", trace.WithAttributes(
+				append([]attribute.KeyValue{attribute.String("ssb.op", op)}, commonAttributes...)...))
+
+		download_start := time.Now()
+		objectReader, err := objectHandle.NewReader(downloadContext)
+		if err != nil {
+			downloadSpan.SetStatus(codes.Error, "error while opening reader")
+			downloadSpan.RecordError(err)
+			downloadSpan.End()
+			continue
+		}
+		if _, err := io.Copy(io.Discard, objectReader); err != nil {
+			downloadSpan.SetStatus(codes.Error, "error while closing reader")
+			downloadSpan.RecordError(err)
+			downloadSpan.End()
+			continue
+		}
+		// Only record data in the histogram for successful downloads. Otherwise
+		// we are mixing results
+		downloadSpan.End()
+		duration := time.Since(download_start)
+		histogram.Record(downloadContext, duration.Milliseconds(), metric.WithAttributes(
+			append([]attribute.KeyValue{attribute.String("ssb.op", op)}, commonAttributes...)...))
+	}
+}
+
+func getVersion(config Config, name string) string {
+	v, ok := config.versions[name]
+	if ok {
+		return v
+	}
+	return "unknown"
 }
 
 type Uploader struct {
@@ -308,7 +330,9 @@ func singleShotUpload(ctx context.Context, client *storage.Client, bucketName st
 	bucket := client.Bucket(bucketName)
 	o := bucket.Object(objectName)
 	objectWriter := o.If(storage.Conditions{DoesNotExist: true}).NewWriter(ctx)
-	objectWriter.ChunkSize = len(data) + 1
+	// Make the buffer large enough such that the data all fits in the buffer,
+	// and SDK will use a single-shot upload.
+	objectWriter.ChunkSize = len(data) + 256*KiB
 	if _, err := io.Copy(objectWriter, bytes.NewBuffer(data)); err != nil {
 		return o, err
 	}
@@ -319,7 +343,16 @@ func resumableUpload(ctx context.Context, client *storage.Client, bucketName str
 	bucket := client.Bucket(bucketName)
 	o := bucket.Object(objectName)
 	objectWriter := o.If(storage.Conditions{DoesNotExist: true}).NewWriter(ctx)
-	objectWriter.ChunkSize = 2 * MiB
+	// If the data is smaller than an upload quantum, there is no way to force
+	// the SDK to use resumable uploads. For larger uploads we can force the
+	// SDK to flush data if we make the chunk size small enough. We don't want
+	// to make it too small, as that seems unfair when comparing to other
+	// languages.
+	if len(data) > uploadQuantum {
+		objectWriter.ChunkSize = uploadQuantum
+	} else {
+		objectWriter.ChunkSize = min(2*MiB, len(data)-uploadQuantum)
+	}
 	offset := 0
 	for offset < len(data) {
 		n := min(objectWriter.ChunkSize, len(data)-offset)
@@ -350,7 +383,7 @@ type Transport struct {
 	client *storage.Client
 }
 
-func makeTransports(ctx context.Context, flags stringFlags) []Transport {
+func makeTransports(ctx context.Context, flags []string) []Transport {
 	var transports = make([]Transport, 0)
 	for _, transport := range flags {
 		if transport == JSON {
@@ -511,7 +544,7 @@ func enableMeter(ctx context.Context, projectID string, instance string) func() 
 	}
 }
 
-func enableProfiler(projectID string, deployment string, profilerVersion string) func() {
+func enableProfiler(projectID string, deployment string, profilerVersion string) {
 	cfg := profiler.Config{
 		Service:        fmt.Sprintf("w1r3.%s", deployment),
 		ServiceVersion: profilerVersion,
@@ -522,14 +555,12 @@ func enableProfiler(projectID string, deployment string, profilerVersion string)
 	if err := profiler.Start(cfg); err != nil {
 		log.Fatal(err)
 	}
-	return func() {}
 }
 
 func benchmarkVersion() string {
-	buildInfo, ok := debug.ReadBuildInfo()
 	version := ""
 	modified := false
-	if ok {
+	if buildInfo, ok := debug.ReadBuildInfo(); ok {
 		for _, s := range buildInfo.Settings {
 			if s.Key == "vcs.revision" {
 				version = s.Value
