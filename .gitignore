@@ -1,7 +1,16 @@
+# C++ build directory with CMake and VS Code.
+.build/
+
 # Terraform local state and lock files.
 terraform.tfstate
 .terraform/
 .terraform.lock.hcl
+
+# Maven output files
+**/java/target/
+
+# Python virtual environment
+.venv/
 
 # Visual Studio Code configuration files
 .vscode/
