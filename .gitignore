@@ -1,3 +1,10 @@
+# Terraform local state and lock files.
 terraform.tfstate
 .terraform/
 .terraform.lock.hcl
+
+# Visual Studio Code configuration files
+.vscode/
+
+# The golang benchmark binary
+w1r3/go/w1r3
