@@ -67,9 +67,10 @@ const (
 	KiB        = 1024
 	MiB        = 1024 * KiB
 	// The minimum upload quantum supported by Google Cloud Storage
-	uploadQuantum     = 256 * KiB
-	appName           = "w1r3"
-	defaultSampleRate = 0.05
+	uploadQuantum        = 256 * KiB
+	appName              = "w1r3"
+	defaultMetricsPrefix = "ssb/w1r3"
+	defaultSampleRate    = 0.05
 )
 
 func main() {
@@ -78,19 +79,32 @@ func main() {
 		log.Fatalf("error setting OTEL_GO_X_EXEMPLAR: %v", err)
 	}
 
-	var projectID = flag.String("project-id", "", "the Google Cloud Platform project")
-	var bucket = flag.String("bucket", "", "the bucket used by the benchmark")
-	var deployment = flag.String("deployment", "development", "where is the benchmark running. For example: development, GKE, GCE")
-	var iterations = flag.Int("iterations", 1_000_000, "how many iterations to run")
-	var workers = flag.Int("workers", 1, "the number of concurrent threads running the benchmark")
+	var projectID = flag.String("project-id", "",
+		"the Google Cloud Platform project")
+	var bucket = flag.String("bucket", "",
+		"the bucket used by the benchmark")
+	var deployment = flag.String("deployment", "development",
+		"where is the benchmark running. For example: development, GKE, GCE")
+	var iterations = flag.Int("iterations", 1_000_000,
+		"how many iterations to run")
+	var workers = flag.Int("workers", 1,
+		"the number of concurrent threads running the benchmark")
 	var transportArgs stringFlags
-	flag.Var(&transportArgs, "transport", "the transports (JSON, GRPC+CFE, GRPC+DP) used by the benchmark")
+	flag.Var(&transportArgs, "transport",
+		"the transports (JSON, GRPC+CFE, GRPC+DP) used by the benchmark")
 	var uploaderArgs stringFlags
-	flag.Var(&uploaderArgs, "uploader", "the uploaders (SINGLE-SHOT, RESUMABLE) used by the benchmark")
+	flag.Var(&uploaderArgs, "uploader",
+		"the uploaders (SINGLE-SHOT, RESUMABLE) used by the benchmark")
 	var objectSizes intFlags
-	flag.Var(&objectSizes, "object-size", "the object sizes used by the benchmark")
-	var tracingRate = flag.Float64("tracing-rate", defaultSampleRate, "the sample rate for traces")
-	var profileVersion = flag.String("profile-version", benchmarkVersion(), "a version to identify in Cloud Profiler")
+	flag.Var(&objectSizes, "object-size",
+		"the object sizes used by the benchmark")
+	var tracingRate = flag.Float64("tracing-rate", defaultSampleRate,
+		"the sample rate for traces")
+	var profileVersion = flag.String("profile-version", benchmarkVersion(),
+		"a version to identify in Cloud Profiler")
+	var metricsPrefix = flag.String("metrics-prefix", defaultMetricsPrefix,
+		"using a ad-hoc metrics prefix an be useful during development,"+
+			" as metrics cannot be updated without losing all existing data")
 	flag.Parse()
 
 	if *projectID == "" {
@@ -169,13 +183,14 @@ func main() {
 	log.Printf("# Protobuf Version: %s", versions["google.golang.org/protobuf"])
 	log.Printf("# Tracing Rate: %f", *tracingRate)
 	log.Printf("# Version for Profiler: %s", *profileVersion)
+	log.Printf("# Metrics Prefix: %s", *metricsPrefix)
 
 	tracer := otel.GetTracerProvider().Tracer(appName)
 	meter := otel.GetMeterProvider().Meter(appName)
-	histogram, err := meter.Int64Histogram(
-		"ssb/w1r3/latency",
+	histogram, err := meter.Float64Histogram(
+		*metricsPrefix+"/latency",
 		metric.WithDescription("The duration of task execution."),
-		metric.WithUnit("ms"),
+		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(histogramBoundaries()...),
 	)
 	if err != nil {
@@ -217,7 +232,7 @@ type Config struct {
 	iterations  int
 }
 
-func worker(ctx context.Context, config Config, tracer trace.Tracer, histogram metric.Int64Histogram) {
+func worker(ctx context.Context, config Config, tracer trace.Tracer, histogram metric.Float64Histogram) {
 	data := make([]byte, slices.Max(config.objectSizes))
 	rand.Read(data) // rand.Read() is deprecated, but good enough for this benchmark.
 	for i := range config.iterations {
@@ -263,7 +278,7 @@ func worker(ctx context.Context, config Config, tracer trace.Tracer, histogram m
 }
 
 func uploadStep(ctx context.Context, tracer trace.Tracer,
-	histogram metric.Int64Histogram,
+	histogram metric.Float64Histogram,
 	commonAttributes []attribute.KeyValue,
 	config Config,
 	uploader Uploader,
@@ -283,14 +298,14 @@ func uploadStep(ctx context.Context, tracer trace.Tracer,
 		return nil, err
 	}
 	duration := time.Since(upload_start)
-	histogram.Record(uploadContext, duration.Milliseconds(), metric.WithAttributes(
+	histogram.Record(uploadContext, duration.Seconds(), metric.WithAttributes(
 		append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)}, commonAttributes...)...))
 	uploadSpan.End()
 	return objectHandle, nil
 }
 
 func downloadStep(ctx context.Context, tracer trace.Tracer,
-	histogram metric.Int64Histogram,
+	histogram metric.Float64Histogram,
 	commonAttributes []attribute.KeyValue,
 	objectHandle *storage.ObjectHandle) {
 	for r := range 3 {
@@ -317,7 +332,7 @@ func downloadStep(ctx context.Context, tracer trace.Tracer,
 		// we are mixing results
 		downloadSpan.End()
 		duration := time.Since(download_start)
-		histogram.Record(downloadContext, duration.Milliseconds(), metric.WithAttributes(
+		histogram.Record(downloadContext, duration.Seconds(), metric.WithAttributes(
 			append([]attribute.KeyValue{attribute.String("ssb.op", op)}, commonAttributes...)...))
 	}
 }
@@ -474,19 +489,19 @@ func enableTracing(ctx context.Context, sampleRate float64, projectID string) (f
 
 func histogramBoundaries() []float64 {
 	boundaries := make([]float64, 0)
-	boundary := 0.0
-	increment := 2.0
+	boundary := 0 * time.Second
+	increment := 2 * time.Millisecond
 	for range 50 {
-		boundaries = append(boundaries, boundary)
+		boundaries = append(boundaries, boundary.Seconds())
 		boundary += increment
 	}
-	boundary = 100.0
-	increment = 10.0
+	boundary = 100 * time.Millisecond
+	increment = 10 * time.Millisecond
 	for i := range 150 {
-		if boundary >= 300_000 {
+		if boundary >= 300*time.Second {
 			break
 		}
-		boundaries = append(boundaries, boundary)
+		boundaries = append(boundaries, boundary.Seconds())
 		if i != 0 && i%10 == 0 {
 			increment *= 2
 		}
@@ -498,6 +513,7 @@ func histogramBoundaries() []float64 {
 func enableMeter(ctx context.Context, projectID string, instance string) (func(), error) {
 	exporter, err := expmetric.New(
 		expmetric.WithProjectID(projectID),
+		expmetric.WithDisableCreateMetricDescriptors(),
 	)
 	if err != nil {
 		return nil, err
