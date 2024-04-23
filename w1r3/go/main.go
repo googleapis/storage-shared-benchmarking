@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"cloud.google.com/go/profiler"
@@ -187,14 +188,21 @@ func main() {
 
 	tracer := otel.GetTracerProvider().Tracer(appName)
 	meter := otel.GetMeterProvider().Meter(appName)
-	histogram, err := meter.Float64Histogram(
+	latency, err := meter.Float64Histogram(
 		*metricsPrefix+"/latency",
-		metric.WithDescription("The duration of task execution."),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(histogramBoundaries()...),
+		metric.WithExplicitBucketBoundaries(latencyHistogramBoundaries()...),
 	)
 	if err != nil {
-		log.Fatalf("Cannot create ssb/w1r3/latency histogram: %v", err)
+		log.Fatalf("Cannot create %s/latency histogram: %v", *metricsPrefix, err)
+	}
+	cpu, err := meter.Float64Histogram(
+		*metricsPrefix+"/cpu",
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(cpuHistogramBoundaries()...),
+	)
+	if err != nil {
+		log.Fatalf("Cannot create %s/cpu histogram: %v", *metricsPrefix, err)
 	}
 
 	config := Config{
@@ -211,7 +219,7 @@ func main() {
 	var wg sync.WaitGroup
 	launch := func() {
 		defer wg.Done()
-		worker(ctx, config, tracer, histogram)
+		worker(ctx, config, tracer, latency, cpu)
 	}
 
 	wg.Add(*workers)
@@ -232,7 +240,10 @@ type Config struct {
 	iterations  int
 }
 
-func worker(ctx context.Context, config Config, tracer trace.Tracer, histogram metric.Float64Histogram) {
+func worker(ctx context.Context, config Config, tracer trace.Tracer,
+	latency metric.Float64Histogram, cpu metric.Float64Histogram) {
+	// Create some random data to upload. We use the same data in all
+	// iterations.
 	data := make([]byte, slices.Max(config.objectSizes))
 	rand.Read(data) // rand.Read() is deprecated, but good enough for this benchmark.
 	for i := range config.iterations {
@@ -262,14 +273,14 @@ func worker(ctx context.Context, config Config, tracer trace.Tracer, histogram m
 			ctx, "ssb::iteration", trace.WithAttributes(
 				append([]attribute.KeyValue{attribute.Int("ssb.iteration", i)}, commonAttributes...)...))
 
-		objectHandle, err := uploadStep(spanContext, tracer, histogram, commonAttributes,
+		objectHandle, err := uploadStep(spanContext, tracer, latency, cpu, commonAttributes,
 			config, uploader, transport, objectName, data[0:objectSize])
 		if err != nil {
 			span.End()
 			continue
 		}
 
-		downloadStep(spanContext, tracer, histogram, commonAttributes, objectHandle)
+		downloadStep(spanContext, tracer, latency, cpu, commonAttributes, objectHandle, objectSize)
 
 		d := objectHandle.Retryer(storage.WithPolicy(storage.RetryAlways))
 		d.Delete(spanContext)
@@ -277,62 +288,120 @@ func worker(ctx context.Context, config Config, tracer trace.Tracer, histogram m
 	}
 }
 
+func totalCpu(ru syscall.Rusage) time.Duration {
+	return ((time.Duration(ru.Utime.Sec)*time.Second + time.Duration(ru.Utime.Usec)*time.Microsecond) +
+		(time.Duration(ru.Stime.Sec)*time.Second + time.Duration(ru.Stime.Usec)*time.Microsecond))
+}
+
+func cpuStart() (time.Duration, error) {
+	var start syscall.Rusage
+	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &start); err != nil {
+		return time.Duration(0), err
+	}
+	return totalCpu(start), nil
+}
+
+func cpuElapsed(start time.Duration) (time.Duration, error) {
+	var end syscall.Rusage
+	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &end); err != nil {
+		return time.Duration(0), err
+	}
+	return totalCpu(end) - start, nil
+}
+
 func uploadStep(ctx context.Context, tracer trace.Tracer,
-	histogram metric.Float64Histogram,
+	latency metric.Float64Histogram,
+	cpu metric.Float64Histogram,
 	commonAttributes []attribute.KeyValue,
 	config Config,
 	uploader Uploader,
 	transport Transport,
 	objectName string,
 	data []byte) (*storage.ObjectHandle, error) {
+
 	uploadContext, uploadSpan := tracer.Start(
 		ctx, "ssb::upload", trace.WithAttributes(
 			append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)}, commonAttributes...)...))
 
-	upload_start := time.Now()
-	objectHandle, err := uploader.uploader(uploadContext, transport.client, config.bucketName, objectName, data)
-	if err != nil {
-		uploadSpan.SetStatus(codes.Error, "error during upload")
+	endSpan := func(msg string, err error) {
+		uploadSpan.SetStatus(codes.Error, msg)
 		uploadSpan.RecordError(err)
 		uploadSpan.End()
+	}
+
+	cpuStart, err := cpuStart()
+	if err != nil {
+		endSpan("error during cpuStart()", err)
 		return nil, err
 	}
-	duration := time.Since(upload_start)
-	histogram.Record(uploadContext, duration.Seconds(), metric.WithAttributes(
+	latencyStart := time.Now()
+	objectHandle, err := uploader.uploader(uploadContext, transport.client, config.bucketName, objectName, data)
+	if err != nil {
+		endSpan("error during upload", err)
+		return nil, err
+	}
+	latencyDuration := time.Since(latencyStart)
+	cpuDuration, err := cpuElapsed(cpuStart)
+	if err != nil {
+		endSpan("error during cpuEnd()", err)
+		return nil, err
+	}
+	cpu.Record(uploadContext, cpuDuration.Seconds(), metric.WithAttributes(
+		append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)}, commonAttributes...)...))
+
+	latency.Record(uploadContext, latencyDuration.Seconds(), metric.WithAttributes(
 		append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)}, commonAttributes...)...))
 	uploadSpan.End()
 	return objectHandle, nil
 }
 
 func downloadStep(ctx context.Context, tracer trace.Tracer,
-	histogram metric.Float64Histogram,
+	latency metric.Float64Histogram,
+	cpu metric.Float64Histogram,
 	commonAttributes []attribute.KeyValue,
-	objectHandle *storage.ObjectHandle) {
+	objectHandle *storage.ObjectHandle,
+	objectSize int64) {
 	for r := range 3 {
 		op := fmt.Sprintf("READ[%d]", r)
+
 		downloadContext, downloadSpan := tracer.Start(
 			ctx, "ssb::download", trace.WithAttributes(
 				append([]attribute.KeyValue{attribute.String("ssb.op", op)}, commonAttributes...)...))
 
-		download_start := time.Now()
-		objectReader, err := objectHandle.NewReader(downloadContext)
-		if err != nil {
-			downloadSpan.SetStatus(codes.Error, "error while opening reader")
+		endSpan := func(msg string, err error) {
+			downloadSpan.SetStatus(codes.Error, msg)
 			downloadSpan.RecordError(err)
 			downloadSpan.End()
+		}
+		cpuStart, err := cpuStart()
+		if err != nil {
+			endSpan("error during cpuStart()", err)
+			continue
+		}
+		latencyStart := time.Now()
+		objectReader, err := objectHandle.NewReader(downloadContext)
+		if err != nil {
+			endSpan("error while opening reader", err)
 			continue
 		}
 		if _, err := io.Copy(io.Discard, objectReader); err != nil {
-			downloadSpan.SetStatus(codes.Error, "error while closing reader")
-			downloadSpan.RecordError(err)
-			downloadSpan.End()
+			endSpan("error while closing reader", err)
 			continue
 		}
 		// Only record data in the histogram for successful downloads. Otherwise
 		// we are mixing results
 		downloadSpan.End()
-		duration := time.Since(download_start)
-		histogram.Record(downloadContext, duration.Seconds(), metric.WithAttributes(
+		latencyDuration := time.Since(latencyStart)
+
+		cpuDuration, err := cpuElapsed(cpuStart)
+		if err != nil {
+			endSpan("error during cpuEnd()", err)
+			continue
+		}
+		cpuPerByte := cpuDuration.Seconds() / float64(objectSize)
+		cpu.Record(downloadContext, cpuPerByte, metric.WithAttributes(
+			append([]attribute.KeyValue{attribute.String("ssb.op", op)}, commonAttributes...)...))
+		latency.Record(downloadContext, latencyDuration.Seconds(), metric.WithAttributes(
 			append([]attribute.KeyValue{attribute.String("ssb.op", op)}, commonAttributes...)...))
 	}
 }
@@ -487,7 +556,7 @@ func enableTracing(ctx context.Context, sampleRate float64, projectID string) (f
 	return cleanup, nil
 }
 
-func histogramBoundaries() []float64 {
+func latencyHistogramBoundaries() []float64 {
 	boundaries := make([]float64, 0)
 	// We want millisecond-sized histogram buckets. Floating point arithmetic is
 	// famously tricky, and time arithmetic is also error prone.. Avoid most of
@@ -507,6 +576,20 @@ func histogramBoundaries() []float64 {
 		}
 		boundaries = append(boundaries, boundary.Seconds())
 		if i != 0 && i%10 == 0 {
+			increment *= 2
+		}
+		boundary += increment
+	}
+	return boundaries
+}
+
+func cpuHistogramBoundaries() []float64 {
+	boundaries := make([]float64, 0)
+	boundary := 0.0
+	increment := 0.1 / float64(time.Second)
+	for i := range 200 {
+		boundaries = append(boundaries, boundary)
+		if i != 0 && i%100 == 0 {
 			increment *= 2
 		}
 		boundary += increment
