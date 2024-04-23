@@ -16,81 +16,34 @@ variable "metric-prefix" {
     default = "ssb/w1r3"
 }
 
-resource "google_monitoring_metric_descriptor" "latency" {
-  description = "Operation latency as measured by the benchmark."
-  display_name = "Operation Latency"
-  type = "workload.googleapis.com/${var.metric-prefix}/latency"
-  metric_kind = "CUMULATIVE"
-  value_type = "DISTRIBUTION"
-  unit = "s"
-
-  labels {
-    key = "service_namespace"
-    value_type = "STRING"
-  }
-  labels {
-    key = "service_name"
-    value_type = "STRING"
-  }
-  labels {
-    key = "service_instance_id"
-    value_type = "STRING"
-  }
-
-  labels {
-    key = "ssb_language"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_deployment"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_instance"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_transport"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_object_size"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_op"
-    value_type = "STRING"
-  }
-
-  labels {
-    key = "ssb_version"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_version_sdk"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_version_http"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_version_grpc"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_version_protobuf"
-    value_type = "STRING"
+locals {
+  metrics = {
+    latency = {
+      description = "Operation latency as measured by the benchmark."
+      display_name = "Operation Latency"
+      unit = "s"
+    }
+    cpu = {
+      description = "CPU usage as measured by the benchmark."
+      display_name = "CPU Usage"
+      unit = "s"
+    }
+    memory = {
+      description = "Memory usage usage as measured by the benchmark."
+      display_name = "Memory Usage"
+      unit = "By"
+    }
   }
 }
 
-resource "google_monitoring_metric_descriptor" "cpu" {
-  description = "CPU usage as measured by the benchmark."
-  display_name = "CPU Usage"
-  type = "workload.googleapis.com/${var.metric-prefix}/cpu"
+resource "google_monitoring_metric_descriptor" "default" {
+  for_each = tomap(local.metrics)
+  description = each.value.description
+  display_name = each.value.display_name
+  unit = each.value.unit
+  type = "workload.googleapis.com/${var.metric-prefix}/${each.key}"
   metric_kind = "CUMULATIVE"
   value_type = "DISTRIBUTION"
-  unit = "s"
 
   labels {
     key = "service_namespace"
@@ -139,76 +92,7 @@ resource "google_monitoring_metric_descriptor" "cpu" {
     value_type = "STRING"
   }
   labels {
-    key = "ssb_version_http"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_version_grpc"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_version_protobuf"
-    value_type = "STRING"
-  }
-}
-
-resource "google_monitoring_metric_descriptor" "memory" {
-  description = "Memory usage usage as measured by the benchmark."
-  display_name = "Memory Usage"
-  type = "workload.googleapis.com/${var.metric-prefix}/memory"
-  metric_kind = "CUMULATIVE"
-  value_type = "DISTRIBUTION"
-  unit = "By"
-
-
-  labels {
-    key = "service_namespace"
-    value_type = "STRING"
-  }
-  labels {
-    key = "service_name"
-    value_type = "STRING"
-  }
-  labels {
-    key = "service_instance_id"
-    value_type = "STRING"
-  }
-
-  labels {
-    key = "ssb_language"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_deployment"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_instance"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_transport"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_object_size"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_op"
-    value_type = "STRING"
-  }
-
-  labels {
-    key = "ssb_version"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_version_sdk"
-    value_type = "STRING"
-  }
-  labels {
-    key = "ssb_version_http"
+    key = "ssb_version_http_client"
     value_type = "STRING"
   }
   labels {
