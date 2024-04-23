@@ -71,6 +71,10 @@ resource "google_monitoring_metric_descriptor" "default" {
     value_type = "STRING"
   }
   labels {
+    key = "ssb_node_id"
+    value_type = "STRING"
+  }
+  labels {
     key = "ssb_transport"
     value_type = "STRING"
   }
