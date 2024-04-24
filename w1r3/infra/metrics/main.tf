@@ -13,55 +13,55 @@
 # limitations under the License.
 
 variable "metric-prefix" {
-    default = "ssb/w1r3"
+  default = "ssb/w1r3"
 }
 
 locals {
   metrics = {
     latency = {
-      description = "Operation latency as measured by the benchmark."
+      description  = "Operation latency as measured by the benchmark."
       display_name = "Operation Latency"
-      unit = "s"
+      unit         = "s"
     }
     cpu = {
-      description = "CPU usage per byte as measured by the benchmark."
+      description  = "CPU usage per byte as measured by the benchmark."
       display_name = "CPU Usage"
-      unit = "s"
+      unit         = "s"
     }
     memory = {
-      description = "Memory usage per byte as measured by the benchmark."
+      description  = "Memory usage per byte as measured by the benchmark."
       display_name = "Memory Usage"
-      unit = "By"
+      unit         = "By"
     }
   }
 }
 
 resource "google_monitoring_metric_descriptor" "default" {
-  for_each = tomap(local.metrics)
-  description = each.value.description
+  for_each     = tomap(local.metrics)
+  description  = each.value.description
   display_name = each.value.display_name
-  unit = each.value.unit
-  type = "workload.googleapis.com/${var.metric-prefix}/${each.key}"
-  metric_kind = "CUMULATIVE"
-  value_type = "DISTRIBUTION"
+  unit         = each.value.unit
+  type         = "workload.googleapis.com/${var.metric-prefix}/${each.key}"
+  metric_kind  = "CUMULATIVE"
+  value_type   = "DISTRIBUTION"
 
   # We do not set the description field because any changes will cause terraform
   # to drop and recreate the metric, losing all the data.
   labels {
-    key = "service_namespace"
+    key        = "service_namespace"
     value_type = "STRING"
     # Maps to `namespace` in a `generic_task` monitored resource type. A
     # namespace identifier, such as a cluster name."
   }
   labels {
-    key = "service_name"
+    key        = "service_name"
     value_type = "STRING"
     # Maps to `job` in a `generic_task` monitored resource type. An identifier
     # for a grouping of related tasks, such as the name of a microservice or
     # distributed batch job.
   }
   labels {
-    key = "service_instance_id"
+    key        = "service_instance_id"
     value_type = "STRING"
     # Maps to `task_id` in a `generic_task` monitored resource type. A unique
     # identifier for the task within the namespace and job, such as a replica
@@ -69,12 +69,12 @@ resource "google_monitoring_metric_descriptor" "default" {
   }
 
   labels {
-    key = "ssb_language"
+    key        = "ssb_language"
     value_type = "STRING"
     # The benchmark and SDK programming language.
   }
   labels {
-    key = "ssb_deployment"
+    key        = "ssb_deployment"
     value_type = "STRING"
     # Where is the SDK deployed. Typically this indicates the
     # deployment environment, as in `gke` or `mig` (Managed Instance Group).
@@ -82,29 +82,29 @@ resource "google_monitoring_metric_descriptor" "default" {
     # `mig-with-fancy-network`.
   }
   labels {
-    key = "ssb_instance"
+    key        = "ssb_instance"
     value_type = "STRING"
     # A unique identifier for the process running the benchmark. We use UUIDv4
     # to generate these identifiers.
   }
   labels {
-    key = "ssb_node_id"
+    key        = "ssb_node_id"
     value_type = "STRING"
     # The GCE instance id.
   }
   labels {
-    key = "ssb_transport"
+    key        = "ssb_transport"
     value_type = "STRING"
     # The transport, that is, whether the results were captured using the JSON
     # API, or gRPC+CFE, or gRPC+DP.
   }
   labels {
-    key = "ssb_object_size"
+    key        = "ssb_object_size"
     value_type = "STRING"
     # The size of the object used to capture these results.
   }
   labels {
-    key = "ssb_op"
+    key        = "ssb_op"
     value_type = "STRING"
     # The operation represented by these results. Typically one of:
     # - RESUMABLE: an upload using the resumable uploads APIs.
@@ -115,27 +115,27 @@ resource "google_monitoring_metric_descriptor" "default" {
   }
 
   labels {
-    key = "ssb_version"
+    key        = "ssb_version"
     value_type = "STRING"
     # The version of the benchmark, e.g. as captured by `git rev-parse HEAD`.
   }
   labels {
-    key = "ssb_version_sdk"
+    key        = "ssb_version_sdk"
     value_type = "STRING"
     # The version of the storage SDK.
   }
   labels {
-    key = "ssb_version_http_client"
+    key        = "ssb_version_http_client"
     value_type = "STRING"
     # The version of the HTTP client used by the SDK.
   }
   labels {
-    key = "ssb_version_grpc"
+    key        = "ssb_version_grpc"
     value_type = "STRING"
     # The version of gRPC used by the SDK.
   }
   labels {
-    key = "ssb_version_protobuf"
+    key        = "ssb_version_protobuf"
     value_type = "STRING"
     # The version of Protobuf used by the SDK.
   }

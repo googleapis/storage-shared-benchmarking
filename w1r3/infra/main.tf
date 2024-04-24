@@ -15,7 +15,7 @@
 terraform {
   required_providers {
     google = {
-      source = "hashicorp/google"
+      source  = "hashicorp/google"
       version = "~> 5.21.0"
     }
   }
@@ -29,5 +29,5 @@ provider "google" {
 
 # Create the metric descriptors used by the benchmark.
 module "metrics" {
-  source  = "./metrics"
+  source = "./metrics"
 }
