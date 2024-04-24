@@ -1,0 +1,40 @@
+# Use the Google style in this project.
+BasedOnStyle: Google
+
+# Some folks prefer to write "int& foo" while others prefer "int &foo".  The
+# Google Style Guide only asks for consistency within a project, we chose
+# "int& foo" for this project:
+DerivePointerAlignment: false
+PointerAlignment: Left
+
+# The Google Style Guide only asks for consistency w.r.t. "east const" vs.
+# "const west" alignment of cv-qualifiers. In this project we use "east const".
+QualifierAlignment: Right
+
+IncludeBlocks: Merge
+
+# Format raw string literals with a `pb` or `proto` tag as proto.
+RawStringFormats:
+- Language: TextProto
+  Delimiters:
+  - 'pb'
+  - 'proto'
+  BasedOnStyle: Google
+
+CommentPragmas: '(@copydoc|@copybrief|@see|@overload|@snippet)'
+
+IncludeCategories:
+- Regex: '^"'
+  Priority: 0
+- Regex: '^<google/'
+  Priority: 1000
+- Regex: '^<absl/'
+  Priority: 1000
+- Regex: '^<.*\.h>'
+  Priority: 2000
+- Regex: '^<.*\.hpp>'
+  Priority: 2000
+- Regex: '^<[^/\.]*>'
+  Priority: 5000
+- Regex: '^<sys/[A-Za-z0-9_]*\.h>$'
+  Priority: 10000

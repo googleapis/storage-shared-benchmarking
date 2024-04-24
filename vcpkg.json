@@ -1,0 +1,21 @@
+{
+    "name": "ssb",
+    "version-string": "unversioned",
+    "homepage": "https://github.com/googleapis/storage-shared-benchmarking/",
+    "description": "Shared Benchmarks for the GCS SDK",
+    "dependencies": [
+      {
+        "name": "google-cloud-cpp",
+        "default-features": false,
+        "features": [
+          "storage",
+          "experimental-storage-grpc",
+          "monitoring",
+          "opentelemetry"
+        ]
+      },
+      "boost-program-options",
+      "boost-uuid",
+      "opentelemetry-cpp"
+    ]
+}
