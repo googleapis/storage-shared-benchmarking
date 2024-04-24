@@ -22,27 +22,26 @@ find_package(google_cloud_cpp_storage CONFIG REQUIRED)
 find_package(google_cloud_cpp_storage_grpc CONFIG) # Unavailable until v2.24.0
 find_package(google_cloud_cpp_opentelemetry CONFIG REQUIRED)
 find_package(
-    Boost
-    COMPONENTS program_options
-    REQUIRED)
+  Boost
+  COMPONENTS program_options
+  REQUIRED)
 
 # We need to capture the Protobuf version in the code. Unfortunately Protobuf
 # does not (yet) expose its version via macros or functions. We use a bit of
 # CMake code to capture the version instead.
 find_package(Protobuf CONFIG REQUIRED)
 
-
 add_executable(w1r3 w1r3.cc)
 target_compile_features(w1r3 PRIVATE cxx_std_20)
 target_compile_definitions(w1r3
                            PRIVATE SSB_PROTOBUF_VERSION="${Protobuf_VERSION}")
 target_link_libraries(
-    w1r3
-    PRIVATE google-cloud-cpp::experimental-storage_grpc
-            google-cloud-cpp::storage
-            google-cloud-cpp::monitoring
-            google-cloud-cpp::opentelemetry
-            opentelemetry-cpp::trace
-            opentelemetry-cpp::metrics
-            opentelemetry-cpp::ostream_metrics_exporter
-            Boost::program_options)
+  w1r3
+  PRIVATE google-cloud-cpp::experimental-storage_grpc
+          google-cloud-cpp::storage
+          google-cloud-cpp::monitoring
+          google-cloud-cpp::opentelemetry
+          opentelemetry-cpp::trace
+          opentelemetry-cpp::metrics
+          opentelemetry-cpp::ostream_metrics_exporter
+          Boost::program_options)
