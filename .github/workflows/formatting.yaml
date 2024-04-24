@@ -1,0 +1,44 @@
+name: formatting
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  formatting:
+    name: formatting
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: hashicorp/setup-terraform@v3
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+    - name: terraform fmt
+      # Format any Terraform HCL scripts.
+      run: |
+        git ls-files -z -- '*.tf' | xargs -P 2 -n 50 -0 terraform fmt
+    - name: cmake-format
+      # Format any go code.
+      run: |
+        git ls-files -z -- '*.go' |
+          xargs -P 2 -n 50 -0 go fmt
+    - name: clang-format
+      # Format the C++ code, if any.
+      run: |
+        git ls-files -z -- '\.(cc|h)$' | xargs -P 2 -n 50 -0 clang-format -i
+    - name: install
+      # Install cmake-format to format the C++ build files.
+      run: |
+        pip install cmakelang==0.6.13
+    - name: cmake-format
+      run: |
+        git ls-files -z -- CMakeLists.txt '**/CMakeLists.txt' '*.cmake' |
+          xargs -P 2 -n 1 -0 /home/runner/.local/bin/cmake-format -i
+
+    - name: check-diff
+      # Show any differences caused by the previous steps. If there are any
+      # that breaks the build, because it indicates one of our files is not
+      # formatted properly.
+      run: git diff --ignore-submodules=all --color --exit-code .
