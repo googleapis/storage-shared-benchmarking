@@ -15,7 +15,7 @@
 terraform {
   required_providers {
     google = {
-      source = "hashicorp/google"
+      source  = "hashicorp/google"
       version = "~> 5.21.0"
     }
   }
@@ -33,8 +33,8 @@ provider "google" {
 # the state of each resource would not scale as the number of resources grows,
 # re-importing a single bootstrap resource seems manageable.
 import {
-    to = google_storage_bucket.terraform
-    id = "${var.project}-terraform"
+  to = google_storage_bucket.terraform
+  id = "${var.project}-terraform"
 }
 
 # Create a bucket to store the Terraform data.
@@ -49,8 +49,8 @@ resource "google_storage_bucket" "terraform" {
   }
 
   # The bucket configuration.
-  location      = "US"
-  storage_class = "STANDARD"
+  location                    = "US"
+  storage_class               = "STANDARD"
   uniform_bucket_level_access = true
   # Keep multiple versions of each object so we can recover if needed.
   versioning {
@@ -60,11 +60,11 @@ resource "google_storage_bucket" "terraform" {
   # to rush.
   lifecycle_rule {
     condition {
-        days_since_noncurrent_time = 365
-        with_state = "ARCHIVED"
+      days_since_noncurrent_time = 365
+      with_state                 = "ARCHIVED"
     }
     action {
-        type = "Delete"
+      type = "Delete"
     }
   }
 }

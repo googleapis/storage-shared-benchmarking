@@ -13,7 +13,7 @@
 # limitations under the License.
 
 variable "project" {
-    default = "storage-sdk-prober-project"
+  default = "storage-sdk-prober-project"
 }
 
 variable "region" {
