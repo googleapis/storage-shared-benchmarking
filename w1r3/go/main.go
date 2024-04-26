@@ -119,12 +119,22 @@ func main() {
 
 	ctx := context.Background()
 	enableProfiler(*projectID, *deployment, *profileVersion)
-	cleanupTracing := enableTracing(ctx, *tracingRate, *projectID)
+	cleanupTracing, err := enableTracing(ctx, *tracingRate, *projectID)
+	if err != nil {
+		log.Fatalf("Error enabling Cloud Profiler exporter %v", err)
+	}
 	defer cleanupTracing()
-	cleanupMeter := enableMeter(ctx, *projectID, instance.String())
+	cleanupMeter, err := enableMeter(ctx, *projectID, instance.String())
+	if err != nil {
+		log.Fatalf("Error enabling Cloud Trace exporter %v", err)
+	}
 	defer cleanupMeter()
 
-	transports := makeTransports(ctx, transportArgs)
+	transports, err := makeTransports(ctx, transportArgs)
+	if err != nil {
+		log.Fatalf("Error creating transports %v", err)
+	}
+
 	closeTransports := func() {
 		for _, t := range transports {
 			t.client.Close()
@@ -132,7 +142,10 @@ func main() {
 	}
 	defer closeTransports()
 
-	uploaders := makeUploaders(uploaderArgs)
+	uploaders, err := makeUploaders(uploaderArgs)
+	if err != nil {
+		log.Fatalf("Error creating uploaders: %v", err)
+	}
 
 	versions := make(map[string]string)
 	bi, ok := debug.ReadBuildInfo()
@@ -157,6 +170,18 @@ func main() {
 	log.Printf("# Tracing Rate: %f", *tracingRate)
 	log.Printf("# Version for Profiler: %s", *profileVersion)
 
+	tracer := otel.GetTracerProvider().Tracer(appName)
+	meter := otel.GetMeterProvider().Meter(appName)
+	histogram, err := meter.Int64Histogram(
+		"ssb/w1r3/latency",
+		metric.WithDescription("The duration of task execution."),
+		metric.WithUnit("ms"),
+		metric.WithExplicitBucketBoundaries(histogramBoundaries()...),
+	)
+	if err != nil {
+		log.Fatalf("Cannot create ssb/w1r3/latency histogram: %v", err)
+	}
+
 	config := Config{
 		transports:  transports,
 		uploaders:   uploaders,
@@ -171,7 +196,7 @@ func main() {
 	var wg sync.WaitGroup
 	launch := func() {
 		defer wg.Done()
-		worker(ctx, config)
+		worker(ctx, config, tracer, histogram)
 	}
 
 	wg.Add(*workers)
@@ -192,19 +217,7 @@ type Config struct {
 	iterations  int
 }
 
-func worker(ctx context.Context, config Config) {
-	tracer := otel.GetTracerProvider().Tracer("")
-	meter := otel.GetMeterProvider().Meter("")
-	histogram, err := meter.Int64Histogram(
-		"ssb/w1r3/latency",
-		metric.WithDescription("The duration of task execution."),
-		metric.WithUnit("ms"),
-		metric.WithExplicitBucketBoundaries(histogramBoundaries()...),
-	)
-	if err != nil {
-		log.Fatalf("Cannot create ssb/w1r3/latency histogram: %v", err)
-	}
-
+func worker(ctx context.Context, config Config, tracer trace.Tracer, histogram metric.Int64Histogram) {
 	data := make([]byte, slices.Max(config.objectSizes))
 	rand.Read(data) // rand.Read() is deprecated, but good enough for this benchmark.
 	for i := range config.iterations {
@@ -215,9 +228,6 @@ func worker(ctx context.Context, config Config) {
 		var objectName = id.String()
 		var objectSize = config.objectSizes[rand.Intn(len(config.objectSizes))]
 		var transport = config.transports[rand.Intn(len(config.transports))]
-		if transport.client == nil {
-			log.Fatalf("Iteration %d transport %s is nil", i, transport.name)
-		}
 		var uploader = config.uploaders[rand.Intn(len(config.uploaders))]
 
 		commonAttributes := []attribute.KeyValue{
@@ -368,7 +378,7 @@ func resumableUpload(ctx context.Context, client *storage.Client, bucketName str
 	return o, objectWriter.Close()
 }
 
-func makeUploaders(names stringFlags) []Uploader {
+func makeUploaders(names stringFlags) ([]Uploader, error) {
 	var uploaders = make([]Uploader, 0)
 	for _, name := range names {
 		if name == singleShot {
@@ -376,10 +386,10 @@ func makeUploaders(names stringFlags) []Uploader {
 		} else if name == resumable {
 			uploaders = append(uploaders, Uploader{resumable, resumableUpload})
 		} else {
-			log.Fatalf("unknown uploader name %v", name)
+			return nil, fmt.Errorf("unknown uploader name %s", name)
 		}
 	}
-	return uploaders
+	return uploaders, nil
 }
 
 type Transport struct {
@@ -387,46 +397,46 @@ type Transport struct {
 	client *storage.Client
 }
 
-func makeTransports(ctx context.Context, flags []string) []Transport {
+func makeTransports(ctx context.Context, flags []string) ([]Transport, error) {
 	var transports = make([]Transport, 0)
 	for _, transport := range flags {
 		if transport == JSON {
 			client, err := storage.NewClient(ctx)
 			if err != nil {
-				log.Fatalf("storage.NewClient for %s: %v", transport, err)
+				return nil, err
 			}
 			transports = append(transports, Transport{transport, client})
 		} else if transport == GRPC_CFE {
 			client, err := storage.NewGRPCClient(ctx)
 			if err != nil {
-				log.Fatalf("storage.NewGRPCClient for %v: %v", transport, err)
+				return nil, err
 			}
 			transports = append(transports, Transport{transport, client})
 		} else if transport == GRPC_DP {
 			const xdsEnvVar = "GOOGLE_CLOUD_ENABLE_DIRECT_PATH_XDS"
 			if err := os.Setenv(xdsEnvVar, "true"); err != nil {
-				log.Fatalf("error setting %s: %v", xdsEnvVar, err)
+				return nil, err
 			}
 			client, err := storage.NewGRPCClient(ctx)
 			if err != nil {
-				log.Fatalf("storage.NewGRPCClient for %v: %v", transport, err)
+				return nil, err
 			}
 			transports = append(transports, Transport{transport, client})
 			if err := os.Unsetenv(xdsEnvVar); err != nil {
-				log.Fatalf("error unsetting %s: %v", xdsEnvVar, err)
+				return nil, err
 			}
 		} else {
-			log.Fatalf("unknown transport %v", transport)
+			return nil, fmt.Errorf("unknown transport %v", transport)
 		}
 	}
-	return transports
+	return transports, nil
 }
 
 // enableTracing turns on Open Telemetry tracing with export to Cloud Trace.
-func enableTracing(ctx context.Context, sampleRate float64, projectID string) func() {
+func enableTracing(ctx context.Context, sampleRate float64, projectID string) (func(), error) {
 	exporter, err := exptrace.New(exptrace.WithProjectID(projectID))
 	if err != nil {
-		log.Fatalf("exptrace.New: %v", err)
+		return nil, err
 	}
 
 	// Identify your application using resource detection
@@ -441,7 +451,7 @@ func enableTracing(ctx context.Context, sampleRate float64, projectID string) fu
 		),
 	)
 	if err != nil {
-		log.Fatalf("resource.New: %v", err)
+		return nil, err
 	}
 
 	// Create trace provider with the exporter.
@@ -453,12 +463,13 @@ func enableTracing(ctx context.Context, sampleRate float64, projectID string) fu
 
 	otel.SetTracerProvider(tp)
 
-	return func() {
+	cleanup := func() {
 		tp.ForceFlush(ctx)
 		if err := tp.Shutdown(context.Background()); err != nil {
 			log.Fatal(err)
 		}
 	}
+	return cleanup, nil
 }
 
 func histogramBoundaries() []float64 {
@@ -484,12 +495,12 @@ func histogramBoundaries() []float64 {
 	return boundaries
 }
 
-func enableMeter(ctx context.Context, projectID string, instance string) func() {
+func enableMeter(ctx context.Context, projectID string, instance string) (func(), error) {
 	exporter, err := expmetric.New(
 		expmetric.WithProjectID(projectID),
 	)
 	if err != nil {
-		log.Fatalf("Cannot create exporter: %v", err)
+		return nil, err
 	}
 
 	// We want this metric to be about the `generic_task` monitored resource
@@ -520,7 +531,7 @@ func enableMeter(ctx context.Context, projectID string, instance string) func() 
 		resource.WithAttributes(attributes...),
 	)
 	if err != nil {
-		log.Fatalf("resource.New: %v", err)
+		return nil, err
 	}
 
 	meterProvider := sdkmetric.NewMeterProvider(
@@ -540,15 +551,16 @@ func enableMeter(ctx context.Context, projectID string, instance string) func() 
 	otel.SetMeterProvider(meterProvider)
 
 	// Handle shutdown properly so nothing leaks.
-	return func() {
+	cleanup := func() {
 		log.Print("Shutting down meter provider")
 		if err := meterProvider.Shutdown(context.Background()); err != nil {
 			log.Println(err)
 		}
 	}
+	return cleanup, nil
 }
 
-func enableProfiler(projectID string, deployment string, profilerVersion string) {
+func enableProfiler(projectID string, deployment string, profilerVersion string) error {
 	cfg := profiler.Config{
 		Service:        fmt.Sprintf("w1r3.%s", deployment),
 		ServiceVersion: profilerVersion,
@@ -556,9 +568,7 @@ func enableProfiler(projectID string, deployment string, profilerVersion string)
 		MutexProfiling: true,
 	}
 
-	if err := profiler.Start(cfg); err != nil {
-		log.Fatal(err)
-	}
+	return profiler.Start(cfg)
 }
 
 func benchmarkVersion() string {
