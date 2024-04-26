@@ -489,6 +489,10 @@ func enableTracing(ctx context.Context, sampleRate float64, projectID string) (f
 
 func histogramBoundaries() []float64 {
 	boundaries := make([]float64, 0)
+	// We want millisecond-sized histogram buckets. Floating point arithmetic is
+	// famously tricky, and time arithmetic is also error prone.. Avoid most of
+	// these problems by using `time.Duration` to do all the arithmetic, and
+	// only convert to `float64` (and seconds) when needed.
 	boundary := 0 * time.Second
 	increment := 2 * time.Millisecond
 	for range 50 {
