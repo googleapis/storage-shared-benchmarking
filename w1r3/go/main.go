@@ -134,11 +134,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error creating transports %v", err)
 	}
-	for _, t := range transports {
-		if t.client == nil {
-			log.Fatalf("Transport %s client is nil", t.name)
-		}
-	}
 
 	closeTransports := func() {
 		for _, t := range transports {
