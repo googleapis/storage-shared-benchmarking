@@ -4,7 +4,6 @@
 # Terraform local state and lock files.
 terraform.tfstate
 .terraform/
-.terraform.lock.hcl
 
 # Maven output files
 **/java/target/
