@@ -1,0 +1,4 @@
+# A .ignore file for Google Cloud Build
+
+# Ignore anything ignored by `git`:
+#!include:.gitignore
