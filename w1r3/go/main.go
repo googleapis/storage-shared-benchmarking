@@ -205,7 +205,7 @@ func main() {
 		log.Fatalf("Cannot create %s/cpu histogram: %v", *metricsPrefix, err)
 	}
 
-	config := Config{
+	config := BenchmarkConfig{
 		transports:  transports,
 		uploaders:   uploaders,
 		objectSizes: objectSizes,
@@ -229,7 +229,7 @@ func main() {
 	wg.Wait()
 }
 
-type Config struct {
+type BenchmarkConfig struct {
 	transports  []Transport
 	uploaders   []Uploader
 	objectSizes []int64
@@ -240,7 +240,7 @@ type Config struct {
 	iterations  int
 }
 
-func worker(ctx context.Context, config Config, tracer trace.Tracer,
+func worker(ctx context.Context, config BenchmarkConfig, tracer trace.Tracer,
 	latency metric.Float64Histogram, cpu metric.Float64Histogram) {
 	// Create some random data to upload. We use the same data in all
 	// iterations.
@@ -273,14 +273,21 @@ func worker(ctx context.Context, config Config, tracer trace.Tracer,
 			ctx, "ssb::iteration", trace.WithAttributes(
 				append([]attribute.KeyValue{attribute.Int("ssb.iteration", i)}, commonAttributes...)...))
 
-		objectHandle, err := uploadStep(spanContext, tracer, latency, cpu, commonAttributes,
-			config, uploader, transport, objectName, data[0:objectSize])
+		stepConfig := StepConfig{
+			tracer:           tracer,
+			latency:          latency,
+			cpu:              cpu,
+			commonAttributes: commonAttributes,
+		}
+
+		objectHandle, err := uploadStep(spanContext, config, stepConfig,
+			uploader, transport, objectName, data[0:objectSize])
 		if err != nil {
 			span.End()
 			continue
 		}
 
-		downloadStep(spanContext, tracer, latency, cpu, commonAttributes, objectHandle, objectSize)
+		downloadStep(spanContext, stepConfig, objectHandle, objectSize)
 
 		d := objectHandle.Retryer(storage.WithPolicy(storage.RetryAlways))
 		d.Delete(spanContext)
@@ -309,19 +316,25 @@ func cpuElapsed(start time.Duration) (time.Duration, error) {
 	return totalCpu(end) - start, nil
 }
 
-func uploadStep(ctx context.Context, tracer trace.Tracer,
-	latency metric.Float64Histogram,
-	cpu metric.Float64Histogram,
-	commonAttributes []attribute.KeyValue,
-	config Config,
+type StepConfig struct {
+	tracer           trace.Tracer
+	latency          metric.Float64Histogram
+	cpu              metric.Float64Histogram
+	commonAttributes []attribute.KeyValue
+}
+
+func uploadStep(ctx context.Context,
+	config BenchmarkConfig,
+	stepConfig StepConfig,
 	uploader Uploader,
 	transport Transport,
 	objectName string,
 	data []byte) (*storage.ObjectHandle, error) {
 
-	uploadContext, uploadSpan := tracer.Start(
+	uploadContext, uploadSpan := stepConfig.tracer.Start(
 		ctx, "ssb::upload", trace.WithAttributes(
-			append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)}, commonAttributes...)...))
+			append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)},
+				stepConfig.commonAttributes...)...))
 
 	endSpan := func(msg string, err error) {
 		uploadSpan.SetStatus(codes.Error, msg)
@@ -335,7 +348,8 @@ func uploadStep(ctx context.Context, tracer trace.Tracer,
 		return nil, err
 	}
 	latencyStart := time.Now()
-	objectHandle, err := uploader.uploader(uploadContext, transport.client, config.bucketName, objectName, data)
+	objectHandle, err := uploader.uploader(uploadContext, transport.client,
+		config.bucketName, objectName, data)
 	if err != nil {
 		endSpan("error during upload", err)
 		return nil, err
@@ -346,27 +360,30 @@ func uploadStep(ctx context.Context, tracer trace.Tracer,
 		endSpan("error during cpuEnd()", err)
 		return nil, err
 	}
-	cpu.Record(uploadContext, cpuDuration.Seconds(), metric.WithAttributes(
-		append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)}, commonAttributes...)...))
+	cpuPerByte := cpuDuration.Seconds() / float64(len(data))
+	stepConfig.cpu.Record(uploadContext, cpuPerByte, metric.WithAttributes(
+		append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)},
+			stepConfig.commonAttributes...)...))
 
-	latency.Record(uploadContext, latencyDuration.Seconds(), metric.WithAttributes(
-		append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)}, commonAttributes...)...))
+	stepConfig.latency.Record(uploadContext, latencyDuration.Seconds(),
+		metric.WithAttributes(
+			append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)},
+				stepConfig.commonAttributes...)...))
 	uploadSpan.End()
 	return objectHandle, nil
 }
 
-func downloadStep(ctx context.Context, tracer trace.Tracer,
-	latency metric.Float64Histogram,
-	cpu metric.Float64Histogram,
-	commonAttributes []attribute.KeyValue,
+func downloadStep(ctx context.Context,
+	stepConfig StepConfig,
 	objectHandle *storage.ObjectHandle,
 	objectSize int64) {
 	for r := range 3 {
 		op := fmt.Sprintf("READ[%d]", r)
 
-		downloadContext, downloadSpan := tracer.Start(
+		downloadContext, downloadSpan := stepConfig.tracer.Start(
 			ctx, "ssb::download", trace.WithAttributes(
-				append([]attribute.KeyValue{attribute.String("ssb.op", op)}, commonAttributes...)...))
+				append([]attribute.KeyValue{attribute.String("ssb.op", op)},
+					stepConfig.commonAttributes...)...))
 
 		endSpan := func(msg string, err error) {
 			downloadSpan.SetStatus(codes.Error, msg)
@@ -399,14 +416,17 @@ func downloadStep(ctx context.Context, tracer trace.Tracer,
 			continue
 		}
 		cpuPerByte := cpuDuration.Seconds() / float64(objectSize)
-		cpu.Record(downloadContext, cpuPerByte, metric.WithAttributes(
-			append([]attribute.KeyValue{attribute.String("ssb.op", op)}, commonAttributes...)...))
-		latency.Record(downloadContext, latencyDuration.Seconds(), metric.WithAttributes(
-			append([]attribute.KeyValue{attribute.String("ssb.op", op)}, commonAttributes...)...))
+		stepConfig.cpu.Record(downloadContext, cpuPerByte, metric.WithAttributes(
+			append([]attribute.KeyValue{attribute.String("ssb.op", op)},
+				stepConfig.commonAttributes...)...))
+		stepConfig.latency.Record(downloadContext, latencyDuration.Seconds(),
+			metric.WithAttributes(
+				append([]attribute.KeyValue{attribute.String("ssb.op", op)},
+					stepConfig.commonAttributes...)...))
 	}
 }
 
-func getVersion(config Config, name string) string {
+func getVersion(config BenchmarkConfig, name string) string {
 	v, ok := config.versions[name]
 	if ok {
 		return v
@@ -416,10 +436,12 @@ func getVersion(config Config, name string) string {
 
 type Uploader struct {
 	name     string
-	uploader func(ctx context.Context, client *storage.Client, bucketName string, objectName string, data []byte) (*storage.ObjectHandle, error)
+	uploader func(ctx context.Context, client *storage.Client,
+		bucketName string, objectName string, data []byte) (*storage.ObjectHandle, error)
 }
 
-func singleShotUpload(ctx context.Context, client *storage.Client, bucketName string, objectName string, data []byte) (*storage.ObjectHandle, error) {
+func singleShotUpload(ctx context.Context, client *storage.Client,
+	bucketName string, objectName string, data []byte) (*storage.ObjectHandle, error) {
 	bucket := client.Bucket(bucketName)
 	o := bucket.Object(objectName)
 	objectWriter := o.If(storage.Conditions{DoesNotExist: true}).NewWriter(ctx)
@@ -432,7 +454,8 @@ func singleShotUpload(ctx context.Context, client *storage.Client, bucketName st
 	return o, objectWriter.Close()
 }
 
-func resumableUpload(ctx context.Context, client *storage.Client, bucketName string, objectName string, data []byte) (*storage.ObjectHandle, error) {
+func resumableUpload(ctx context.Context, client *storage.Client,
+	bucketName string, objectName string, data []byte) (*storage.ObjectHandle, error) {
 	bucket := client.Bucket(bucketName)
 	o := bucket.Object(objectName)
 	objectWriter := o.If(storage.Conditions{DoesNotExist: true}).NewWriter(ctx)
