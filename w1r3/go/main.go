@@ -608,8 +608,9 @@ func latencyHistogramBoundaries() []float64 {
 
 func cpuHistogramBoundaries() []float64 {
 	boundaries := make([]float64, 0)
+	// The units are ns/B, we start with increments of 0.1ns.
 	boundary := 0.0
-	increment := 0.1 / float64(time.Second)
+	increment := 0.1
 	for i := range 200 {
 		boundaries = append(boundaries, boundary)
 		if i != 0 && i%100 == 0 {
