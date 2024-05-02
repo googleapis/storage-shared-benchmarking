@@ -360,8 +360,8 @@ func uploadStep(ctx context.Context,
 		endSpan("error during cpuEnd()", err)
 		return nil, err
 	}
-	cpuPerByte := cpuDuration.Seconds() / float64(len(data))
-	stepConfig.cpu.Record(uploadContext, cpuPerByte, metric.WithAttributes(
+	cpuNanosPerByte := float64(cpuDuration.Nanoseconds()) / float64(len(data))
+	stepConfig.cpu.Record(uploadContext, cpuNanosPerByte, metric.WithAttributes(
 		append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)},
 			stepConfig.commonAttributes...)...))
 
@@ -415,8 +415,8 @@ func downloadStep(ctx context.Context,
 			endSpan("error during cpuEnd()", err)
 			continue
 		}
-		cpuPerByte := cpuDuration.Seconds() / float64(objectSize)
-		stepConfig.cpu.Record(downloadContext, cpuPerByte, metric.WithAttributes(
+		cpuNanosPerByte := float64(cpuDuration.Nanoseconds()) / float64(objectSize)
+		stepConfig.cpu.Record(downloadContext, cpuNanosPerByte, metric.WithAttributes(
 			append([]attribute.KeyValue{attribute.String("ssb.op", op)},
 				stepConfig.commonAttributes...)...))
 		stepConfig.latency.Record(downloadContext, latencyDuration.Seconds(),
