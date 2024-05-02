@@ -23,3 +23,14 @@ variable "region" {
 variable "zone" {
   default = "us-central1-f"
 }
+
+variable "replicas" {
+  # Matches the number of zones in the region.
+  default = 4
+}
+
+# use `-var=app_version_go=v2` to redeploy when the changes do not trigger
+# a terraform change. See mig/go/main.tf for details.
+variable "app_version_go" {
+  default = "v1"
+}
