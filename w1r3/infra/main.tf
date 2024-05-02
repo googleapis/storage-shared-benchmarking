@@ -27,7 +27,45 @@ provider "google" {
   zone    = var.zone
 }
 
+# Create a bucket to store the data used in the benchmark. This data is expected
+# to be ephemeral. Any data older than 15 days gets automatically removed.
+# Only very long running benchmarks may need data for longer than this, and they
+# can refresh the data periodically to avoid running afoul of the lifecycle
+# rule.
+resource "google_storage_bucket" "w1r3" {
+  name                        = "gcs-grpc-team-${var.project}-w1r3-${var.region}"
+  location                    = var.region
+  force_destroy               = true
+  uniform_bucket_level_access = true
+
+  lifecycle_rule {
+    condition {
+      age = 15
+    }
+    action {
+      type = "Delete"
+    }
+  }
+}
+
 # Create the metric descriptors used by the benchmark.
 module "metrics" {
   source = "./metrics"
+}
+
+module "mig-sa" {
+  source  = "./mig/service-account"
+  project = var.project
+  bucket  = google_storage_bucket.w1r3.name
+}
+
+module "mig-go" {
+  source          = "./mig/go"
+  project         = var.project
+  bucket          = google_storage_bucket.w1r3.name
+  region          = var.region
+  replicas        = var.replicas
+  service_account = module.mig-sa.email
+  app_version     = var.app_version_go
+  depends_on      = [module.mig-sa, module.metrics]
 }
