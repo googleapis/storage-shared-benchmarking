@@ -26,12 +26,12 @@ locals {
     cpu = {
       description  = "CPU usage per byte as measured by the benchmark."
       display_name = "CPU Usage"
-      unit         = "s"
+      unit         = "ns/By{CPU}"
     }
     memory = {
       description  = "Memory usage per byte as measured by the benchmark."
       display_name = "Memory Usage"
-      unit         = "By"
+      unit         = "1{memory}"
     }
   }
 }

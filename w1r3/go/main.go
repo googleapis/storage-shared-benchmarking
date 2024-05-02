@@ -198,7 +198,7 @@ func main() {
 	}
 	cpu, err := meter.Float64Histogram(
 		*metricsPrefix+"/cpu",
-		metric.WithUnit("s"),
+		metric.WithUnit("ns/By{CPU}"),
 		metric.WithExplicitBucketBoundaries(cpuHistogramBoundaries()...),
 	)
 	if err != nil {
