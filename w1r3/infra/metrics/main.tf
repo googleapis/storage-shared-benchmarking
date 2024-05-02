@@ -130,6 +130,11 @@ resource "google_monitoring_metric_descriptor" "default" {
     # The version of the HTTP client used by the SDK.
   }
   labels {
+    key        = "ssb_version_http"
+    value_type = "STRING"
+    # The version of HTTP used by the SDK.
+  }
+  labels {
     key        = "ssb_version_grpc"
     value_type = "STRING"
     # The version of gRPC used by the SDK.

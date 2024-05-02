@@ -59,6 +59,10 @@ module "mig-sa" {
   bucket  = google_storage_bucket.w1r3.name
 }
 
+module "histograms" {
+  source = "./dashboards"
+}
+
 module "mig-go" {
   source          = "./mig/go"
   project         = var.project
