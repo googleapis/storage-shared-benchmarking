@@ -149,7 +149,7 @@ final class W1R3 implements Callable<Integer> {
         var random = new Random(seed);
         var tracer = otelSdk.getTracer(scopeName, scopeVersion);
         var meter = otelSdk.getMeter(scopeName);
-        var histogram = meter.histogramBuilder("ssb/t1/latency")
+        var histogram = meter.histogramBuilder("ssb/w1r3/latency")
                 .setExplicitBucketBoundariesAdvice(makeLatencyBoundaries())
                 .setUnit("s").build();
         for (long i = 0; i != this.iterations; ++i) {
