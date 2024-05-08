@@ -19,7 +19,7 @@ project(w1r3-cpp CXX)
 
 find_package(google_cloud_cpp_monitoring CONFIG REQUIRED)
 find_package(google_cloud_cpp_storage CONFIG REQUIRED)
-find_package(google_cloud_cpp_storage_grpc CONFIG) # Unavailable until v2.24.0
+find_package(google_cloud_cpp_storage_grpc CONFIG REQUIRED)
 find_package(google_cloud_cpp_opentelemetry CONFIG REQUIRED)
 find_package(
   Boost
@@ -31,10 +31,24 @@ find_package(
 # CMake code to capture the version instead.
 find_package(Protobuf CONFIG REQUIRED)
 
+find_package(Git REQUIRED)
+# Capture the output from `git rev-parse HEAD`.
+execute_process(
+  COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  OUTPUT_VARIABLE W1R3_VERSION
+  ERROR_VARIABLE W1R3_VERSION
+  RESULT_VARIABLE ERROR_CODE
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(ERROR_CODE)
+  message(FATAL_ERROR "Error running git: ${W1R3_VERSION} ${ERROR_CODE}")
+endif()
+
 add_executable(w1r3 w1r3.cc)
 target_compile_features(w1r3 PRIVATE cxx_std_20)
-target_compile_definitions(w1r3
-                           PRIVATE SSB_PROTOBUF_VERSION="${Protobuf_VERSION}")
+target_compile_definitions(
+  w1r3 PRIVATE SSB_PROTOBUF_VERSION="${Protobuf_VERSION}"
+               SSB_W1R3_VERSION="${W1R3_VERSION}")
 target_link_libraries(
   w1r3
   PRIVATE google-cloud-cpp::experimental-storage_grpc
