@@ -266,7 +266,7 @@ func worker(ctx context.Context, config BenchmarkConfig, tracer trace.Tracer,
 			attribute.String("ssb.version.sdk", getVersion(config, "cloud.google.com/go/storage")),
 			attribute.String("ssb.version.grpc", getVersion(config, "google.golang.org/grpc")),
 			attribute.String("ssb.version.protobuf", getVersion(config, "google.golang.org/protobuf")),
-			attribute.String("ssb.version.http", getVersion(config, "golang.org/x/net")),
+			attribute.String("ssb.version.http-client", getVersion(config, "golang.org/x/net")),
 		}
 
 		spanContext, span := tracer.Start(
