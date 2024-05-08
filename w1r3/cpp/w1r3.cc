@@ -47,65 +47,24 @@
 #include <utility>
 #include <vector>
 
-auto constexpr kKB = 1'000;
-auto constexpr kMB = kKB * kKB;
-auto constexpr kKiB = 1024;
-auto constexpr kMiB = kKiB * kKiB;
+namespace {
 
 using namespace std::literals;
 auto constexpr kTransportJson = "JSON"sv;
 auto constexpr kTransportGrpc = "GRPC+CFE"sv;
 auto constexpr kTransportDirectPath = "GRPC+DP"sv;
 
+auto constexpr kKB = 1'000;
+auto constexpr kMB = kKB * kKB;
+auto constexpr kKiB = 1024;
+auto constexpr kMiB = kKiB * kKiB;
+
 auto constexpr kDefaultIterations = 1'000'000;
+auto constexpr kDefaultSampleRate = 0.05;
 
 namespace gc = ::google::cloud;
 
-auto parse_args(int argc, char* argv[]) {
-  namespace po = boost::program_options;
-  po::options_description desc(
-      "A simple publisher application with Open Telemetery enabled");
-  // The following empty line comments are for readability.
-  desc.add_options()                      //
-      ("help,h", "produce help message")  //
-      // Benchmark options
-      ("bucket", po::value<std::string>()->required(),
-       "the name of a Google Cloud Storage bucket. The benchmark uses this"
-       " bucket to upload and download objects and measures the latency.")  //
-      ("deployment", po::value<std::string>()->default_value("development"),
-       "a short string describing where the benchmark is deployed, e.g."
-       " development, or GKE, or GCE.")  //
-      ("iterations", po::value<int>()->default_value(kDefaultIterations),
-       "the number of iterations before exiting the test")  //
-      ("object-sizes", po::value<std::vector<std::int64_t>>()->multitoken(),
-       "the object sizes used in the benchmark.")  //
-      ("transports", po::value<std::vector<std::string>>()->multitoken(),
-       "the transports used in the benchmark.")  //
-      ("data-buffer-size", po::value<std::size_t>()->default_value(128 * kMiB),
-       "PUT size for resumable uploads")("workers",
-                                         po::value<int>()->default_value(1),
-                                         "the number of worker threads.")  //
-      // Open Telemetry Processor options
-      ("project-id", po::value<std::string>()->required(),
-       "a Google Cloud Project id. The benchmark sends its results to this"
-       " project as Cloud Monitoring metrics and Cloud Trace traces.")  //
-      ("tracing-rate", po::value<double>()->default_value(1.0),
-       "otel::BasicTracingRateOption value")  //
-      ("max-queue-size", po::value<int>()->default_value(2048),
-       "set the max queue size for open telemetery")  //
-      ("max-batch-messages", po::value<std::size_t>(),
-       "pubsub::MaxBatchMessagesOption value");
-
-  po::variables_map vm;
-  po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
-  if (vm.count("help") || argc == 1) {
-    std::cerr << "Usage: " << argv[0] << "\n";
-    std::cerr << desc << "\n";
-    std::exit(argc == 1 ? EXIT_FAILURE : EXIT_SUCCESS);
-  }
-  po::notify(vm);
-  return vm;
-}
+boost::program_options::variables_map parse_args(int argc, char* argv[]);
 
 auto get_object_sizes(boost::program_options::variables_map const& vm) {
   auto const l = vm.find("object-sizes");
@@ -144,6 +103,8 @@ auto generate_uuid(std::mt19937_64& gen) {
   using uuid_generator = boost::uuids::basic_random_generator<std::mt19937_64>;
   return boost::uuids::to_string(uuid_generator{gen}());
 }
+
+}  // namespace
 
 int main(int argc, char* argv[]) try {
   auto const vm = parse_args(argc, argv);
@@ -185,6 +146,7 @@ int main(int argc, char* argv[]) try {
             << "\n# C++ SDK Compiler Flags: " << gci::compiler_flags()     //
             << "\n# gRPC version: " << grpc::Version()                     //
             << "\n# Protobuf version: " << SSB_PROTOBUF_VERSION            //
+            << "\n# Tracing Rate: " << vm["tracing-rate"].as<double>() //
             << std::endl;                                                  //
 
   return EXIT_SUCCESS;
@@ -195,3 +157,49 @@ int main(int argc, char* argv[]) try {
   std::cerr << "Unknown exception caught\n";
   return EXIT_FAILURE;
 }
+
+namespace {
+
+boost::program_options::variables_map parse_args(int argc, char* argv[]) {
+  namespace po = boost::program_options;
+  po::options_description desc(
+      "A simple publisher application with Open Telemetery enabled");
+  // The following empty line comments are for readability.
+  desc.add_options()                      //
+      ("help,h", "produce help message")  //
+      // Benchmark options
+      ("bucket", po::value<std::string>()->required(),
+       "the name of a Google Cloud Storage bucket. The benchmark uses this"
+       " bucket to upload and download objects and measures the latency.")  //
+      ("deployment", po::value<std::string>()->default_value("development"),
+       "a short string describing where the benchmark is deployed, e.g."
+       " development, or GKE, or GCE.")  //
+      ("iterations", po::value<int>()->default_value(kDefaultIterations),
+       "the number of iterations before exiting the test")  //
+      ("object-sizes", po::value<std::vector<std::int64_t>>()->multitoken(),
+       "the object sizes used in the benchmark.")  //
+      ("transports", po::value<std::vector<std::string>>()->multitoken(),
+       "the transports used in the benchmark.")  //
+      ("workers", po::value<int>()->default_value(1),
+       "the number of worker threads.")  //
+      // Open Telemetry Processor options
+      ("project-id", po::value<std::string>()->required(),
+       "a Google Cloud Project id. The benchmark sends its results to this"
+       " project as Cloud Monitoring metrics and Cloud Trace traces.")  //
+      ("tracing-rate", po::value<double>()->default_value(kDefaultSampleRate),
+       "otel::BasicTracingRateOption value")  //
+      ("max-queue-size", po::value<int>()->default_value(2048),
+       "set the max queue size for open telemetery");
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
+  if (vm.count("help") || argc == 1) {
+    std::cerr << "Usage: " << argv[0] << "\n";
+    std::cerr << desc << "\n";
+    std::exit(argc == 1 ? EXIT_FAILURE : EXIT_SUCCESS);
+  }
+  po::notify(vm);
+  return vm;
+}
+
+}  // namespace
