@@ -21,6 +21,9 @@ locals {
     w1r3-go = {
       workdir = "w1r3/go"
     }
+    w1r3-java = {
+      workdir = "w1r3/java"
+    }
   }
 }
 
