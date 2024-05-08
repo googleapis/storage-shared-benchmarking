@@ -45,7 +45,7 @@ jobs:
         java -version
         git ls-files -z -- '**/pom.xml' |
           xargs -0 -I{} dirname {} |
-          xargs -I{} env -C {} mvn com.coveo:fmt-maven-plugin:fmt
+          xargs -I{} env -C {} mvn com.coveo:fmt-maven-plugin:format
 
     - name: check-diff
       # Show any differences caused by the previous steps. If there are any
