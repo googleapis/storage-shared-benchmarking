@@ -48,14 +48,19 @@ import java.util.UUID;
 
 @Command(name = "w1r3", mixinStandardHelpOptions = true, version = "", description = "Runs the w1r3 benchmark.")
 final class W1R3 implements Callable<Integer> {
-    private static final String serviceName = "w1r3";
-    private static final String scopeName = "w1r3";
-    private static final String scopeVersion = "0.0.1";
-    private static final double sampleRate = 0.05;
-    private final int KB = 1000;
-    private final int KiB = 1024;
-    private final int MB = 1000 * KB;
-    private final int MiB = 1024 * KiB;
+    private static final String SERVICE_NAME = "w1r3";
+    private static final String SCOPE_NAME = "w1r3";
+    private static final String SCOPE_VERSION = "0.0.1";
+    private static final double DEFAULT_SAMPLE_RATE = 0.05;
+    private static final int KB = 1000;
+    private static final int KiB = 1024;
+    private static final int MB = 1000 * KB;
+    private static final int MiB = 1024 * KiB;
+
+    private static final String SDK_VERSION = getPackageVersion("com.google.cloud", "google-cloud-storage");
+    private static final String HTTP_CLIENT_VERSION = getPackageVersion("com.google.http-client", "google-http-client");
+    private static final String PROTOBUF_VERSION = getPackageVersion("com.google.protobuf", "protobuf-java");
+    private static final String GRPC_VERSION = getPackageVersion("io.grpc", "grpc-core");
 
     @Option(names = "-project-id", description = "the Google Cloud Platform project ID used by the benchmark", required = true)
     private String project;
@@ -93,53 +98,50 @@ final class W1R3 implements Callable<Integer> {
         }
         var instance = UUID.randomUUID().toString();
 
-        System.out.printf("## Starting continuous GCS Java SDK benchmark\n");
-        System.out.printf("# object-sizes: %s\n", Arrays.toString(this.objectSizes));
-        System.out.printf("# transports: %s\n", Arrays.toString(this.transports));
-        System.out.printf("# project-id: %s\n", this.project);
-        System.out.printf("# bucket: %s\n", this.bucket);
-        System.out.printf("# deployment: %s\n", this.deployment);
-        System.out.printf("# instance: %s\n", instance);
-        System.out.printf("# Java SDK Version %s\n", sdkVersion);
-        System.out.printf("# HTTP Version %s\n", httpClientVersion);
-        System.out.printf("# Protobuf Version %s\n", protobufVersion);
-        System.out.printf("# gRPC Version %s\n", grpcVersion);
+        System.out.printf("## Starting continuous GCS Java SDK benchmark%n");
+        System.out.printf("# object-sizes: %s%n", Arrays.toString(this.objectSizes));
+        System.out.printf("# transports: %s%n", Arrays.toString(this.transports));
+        System.out.printf("# project-id: %s%n", this.project);
+        System.out.printf("# bucket: %s%n", this.bucket);
+        System.out.printf("# deployment: %s%n", this.deployment);
+        System.out.printf("# instance: %s%n", instance);
+        System.out.printf("# Java SDK Version %s%n", SDK_VERSION);
+        System.out.printf("# HTTP Version %s%n", HTTP_CLIENT_VERSION);
+        System.out.printf("# Protobuf Version %s%n", PROTOBUF_VERSION);
+        System.out.printf("# gRPC Version %s%n", GRPC_VERSION);
 
         var random = new SecureRandom();
         var randomData = makeRandomData(this.objectSizes, random);
 
-        var otelSdk = setupOpenTelemetrySdk(instance);
-
-        var clients = makeClients(transports);
-        var uploaders = makeUploaders();
-        var workers = new ArrayList<Thread>();
-        for (int i = 0; i != this.workers; ++i) {
-            workers.add(new Thread(
-                    (() -> {
-                        worker(clients, uploaders, randomData, random.nextInt(), instance, otelSdk);
-                    })));
+        try (var otelSdk = setupOpenTelemetrySdk(instance)) {
+            var clients = makeClients(transports);
+            var uploaders = makeUploaders();
+            var workers = new ArrayList<Thread>();
+            for (int i = 0; i != this.workers; ++i) {
+                workers.add(new Thread(
+                        (() -> {
+                            worker(clients, uploaders, randomData, random.nextInt(), instance, otelSdk);
+                        })));
+            }
+            for (var t : workers) t.start();
+            for (var t : workers) t.join();
         }
-        for (var t : workers)
-            t.start();
-        for (var t : workers)
-            t.join();
         return 0;
     }
 
     public static class Transport {
+        public final String name;
+        public final Storage client;
+
         public Transport(String n, Storage c) {
             name = n;
             client = c;
         }
-
-        public final String name;
-        public final Storage client;
     }
 
-    public static interface Uploader {
-        public BlobId upload(Storage client, BlobInfo info, ByteBuffer input) throws Exception;
-
-        public String name();
+    public interface Uploader {
+        BlobId upload(Storage client, BlobInfo info, ByteBuffer input) throws Exception;
+        String name();
     }
 
     private void worker(
@@ -147,8 +149,8 @@ final class W1R3 implements Callable<Integer> {
             byte[] randomData, int seed, String instance,
             OpenTelemetrySdk otelSdk) {
         var random = new Random(seed);
-        var tracer = otelSdk.getTracer(scopeName, scopeVersion);
-        var meter = otelSdk.getMeter(scopeName);
+        var tracer = otelSdk.getTracer(SCOPE_NAME, SCOPE_VERSION);
+        var meter = otelSdk.getMeter(SCOPE_NAME);
         var histogram = meter.histogramBuilder("ssb/w1r3/latency")
                 .setExplicitBucketBoundariesAdvice(makeLatencyBoundaries())
                 .setUnit("s").build();
@@ -167,10 +169,10 @@ final class W1R3 implements Callable<Integer> {
                     .put("ssb.deployment", deployment)
                     .put("ssb.instance", instance)
                     .put("ssb.version", "unknown")
-                    .put("ssb.version.sdk", sdkVersion)
-                    .put("ssb.version.grpc", grpcVersion)
-                    .put("ssb.version.protobuf", protobufVersion)
-                    .put("ssb.version.http-client", httpClientVersion)
+                    .put("ssb.version.sdk", SDK_VERSION)
+                    .put("ssb.version.grpc", GRPC_VERSION)
+                    .put("ssb.version.protobuf", PROTOBUF_VERSION)
+                    .put("ssb.version.http-client", HTTP_CLIENT_VERSION)
                     .build();
 
             var meterAttributes = Attributes.builder()
@@ -180,10 +182,10 @@ final class W1R3 implements Callable<Integer> {
                     .put("ssb_deployment", deployment)
                     .put("ssb_instance", instance)
                     .put("ssb_version", "unknown")
-                    .put("ssb_version_sdk", sdkVersion)
-                    .put("ssb_version_grpc", grpcVersion)
-                    .put("ssb_version_protobuf", protobufVersion)
-                    .put("ssb_version_http_client", httpClientVersion)
+                    .put("ssb_version_sdk", SDK_VERSION)
+                    .put("ssb_version_grpc", GRPC_VERSION)
+                    .put("ssb_version_protobuf", PROTOBUF_VERSION)
+                    .put("ssb_version_http_client", HTTP_CLIENT_VERSION)
                     .build();
 
             var iterationSpan = tracer.spanBuilder("ssb::iteration")
@@ -312,7 +314,7 @@ final class W1R3 implements Callable<Integer> {
     private OpenTelemetrySdk setupOpenTelemetrySdk(String instance) {
         var meterResourceBuilder = Attributes.builder()
                         .put("service.namespace", "default")
-                        .put("service.name", serviceName)
+                        .put("service.name", SERVICE_NAME)
                         .put("service.instance.id", instance);
         var gcpResource = new GCPResource();
         gcpResource.getAttributes().forEach((attributeKey, value) -> {
@@ -345,7 +347,7 @@ final class W1R3 implements Callable<Integer> {
 
         var traceProvider = SdkTracerProvider.builder()
                 .setResource(Resource.getDefault().merge(Resource.create(gcpResource.getAttributes())))
-                .setSampler(Sampler.traceIdRatioBased(sampleRate))
+                .setSampler(Sampler.traceIdRatioBased(DEFAULT_SAMPLE_RATE))
                 .addSpanProcessor(BatchSpanProcessor.builder(traceExporter)
                         .setMeterProvider(meterProvider).build())
                 .build();
@@ -357,9 +359,10 @@ final class W1R3 implements Callable<Integer> {
                 .buildAndRegisterGlobal();
     }
 
-	// We want millisecond-sized histogram buckets. Floating point arithmetic is
-	// famously tricky, and time arithmetic is also error prone. Avoid most of
-	// these problems by using `Duration` to do all the arithmetic, and only
+	// We want millisecond-sized histogram buckets expressed in seconds.
+    // Floating point arithmetic is famously tricky, and time arithmetic is also
+    // error prone. Avoid most of these problems by using `Duration` to do all
+    // the arithmetic, and only
     // convert to `double` (and seconds) when needed.
     private static List<Double> makeLatencyBoundaries() {
         var boundaries = new ArrayList<Double>();
@@ -397,8 +400,4 @@ final class W1R3 implements Callable<Integer> {
         return "unknown";
     }
 
-    private static final String sdkVersion = getPackageVersion("com.google.cloud", "google-cloud-storage");
-    private static final String httpClientVersion = getPackageVersion("com.google.http-client", "google-http-client");
-    private static final String protobufVersion = getPackageVersion("com.google.protobuf", "protobuf-java");
-    private static final String grpcVersion = getPackageVersion("io.grpc", "grpc-core");
-};
+}
