@@ -131,7 +131,7 @@ resource "google_compute_region_instance_group_manager" "default" {
   target_size        = 3
 
   # NOTE: the name of this resource must be unique for every update;
-  #       this is wy we have a app_version in the name; this way
+  #       this is why we have a app_version in the name; this way
   #       new resource has a different name vs old one and both can
   #       exists at the same time
   lifecycle {
