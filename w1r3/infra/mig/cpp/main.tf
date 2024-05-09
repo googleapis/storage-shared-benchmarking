@@ -40,9 +40,9 @@ variable "app_version" {
 locals {
   # Including the version in the name simplifies updates. An `apply` will
   # delete the previous version and create a new one.
-  runner-template    = "go-runner-template-${var.app_version}"
-  runner-group       = "go-runner-${var.app_version}"
-  base_instance_name = "w1r3-go"
+  runner-template    = "cpp-runner-template-${var.app_version}"
+  runner-group       = "cpp-runner-${var.app_version}"
+  base_instance_name = "w1r3-cpp"
   cpus               = 4
   iterations         = 1000000
 }
@@ -58,7 +58,7 @@ resource "google_compute_instance_template" "default" {
     type         = "PERSISTENT"
   }
   labels = {
-    w1r3-lang = "go"
+    w1r3-lang = "cpp"
   }
   machine_type = "c2d-standard-${local.cpus}"
   metadata = {
@@ -69,14 +69,14 @@ resource "google_compute_instance_template" "default" {
 users:
 - name: cloudservice
   uid: 2000
-  
+
 write_files:
 - path: /etc/systemd/system/w1r3@.service
   permissions: 0644
   owner: root
   content: |
     [Unit]
-    Description=The golang w1r3 continuous benchmark instance %I
+    Description=The C++ w1r3 continuous benchmark instance %I
     StartLimitIntervalSec=300
     StartLimitBurst=3
 
@@ -85,10 +85,10 @@ write_files:
     RestartSec=1s
 
     Environment="HOME=/home/cloudservice"
-    ExecStartPre=/usr/bin/docker-credential-gcr configure-docker ; /usr/bin/docker pull gcr.io/${var.project}/w1r3/go:latest
-    ExecStart=/usr/bin/docker run --rm -u 2000 --name=w1r3-go-%i gcr.io/${var.project}/w1r3/go:latest /r/w1r3 -project-id ${var.project} -bucket ${var.bucket} -iterations ${local.iterations} -deployment mig
-    ExecStop=/usr/bin/docker stop w1r3-go-%i
-    ExecStopPost=/usr/bin/docker rm w1r3-go-%i
+    ExecStartPre=/usr/bin/docker-credential-gcr configure-docker ; /usr/bin/docker pull gcr.io/${var.project}/w1r3/cpp:latest
+    ExecStart=/usr/bin/docker run --rm -u 2000 --name=w1r3-cpp-%i gcr.io/${var.project}/w1r3/cpp:latest /r/w1r3 --project-id=${var.project} --bucket=${var.bucket} --iterations=${local.iterations} --deployment=mig
+    ExecStop=/usr/bin/docker stop w1r3-cpp-%i
+    ExecStopPost=/usr/bin/docker rm w1r3-cpp-%i
 
 runcmd:
 - docker-credential-gcr configure-docker
