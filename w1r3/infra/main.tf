@@ -73,3 +73,14 @@ module "mig-go" {
   app_version     = var.app_version_go
   depends_on      = [module.mig-sa, module.metrics]
 }
+
+module "mig-java" {
+  source          = "./mig/java"
+  project         = var.project
+  bucket          = google_storage_bucket.w1r3.name
+  region          = var.region
+  replicas        = var.replicas
+  service_account = module.mig-sa.email
+  app_version     = var.app_version_java
+  depends_on      = [module.mig-sa, module.metrics]
+}

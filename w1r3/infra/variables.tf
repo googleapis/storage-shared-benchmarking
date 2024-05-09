@@ -34,3 +34,9 @@ variable "replicas" {
 variable "app_version_go" {
   default = "v1"
 }
+
+# use `-var=app_version_java=v2` to redeploy when the changes do not trigger
+# a terraform change. See mig/go/main.tf for details.
+variable "app_version_java" {
+  default = "v1"
+}
