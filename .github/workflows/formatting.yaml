@@ -15,6 +15,10 @@ jobs:
     - uses: actions/setup-go@v5
       with:
         go-version: '1.22'
+    - uses: actions/setup-java@v3
+      with:
+        distribution: temurin
+        java-version: 11
     - name: terraform fmt
       # Format any Terraform HCL scripts.
       run: |
@@ -36,6 +40,12 @@ jobs:
       run: |
         git ls-files -z -- CMakeLists.txt '**/CMakeLists.txt' '*.cmake' |
           xargs -P 2 -n 1 -0 /home/runner/.local/bin/cmake-format -i
+    - name: google-java-format
+      run: |
+        java -version
+        git ls-files -z -- '**/pom.xml' |
+          xargs -0 -I{} dirname {} |
+          xargs -I{} env -C {} mvn com.coveo:fmt-maven-plugin:format
 
     - name: check-diff
       # Show any differences caused by the previous steps. If there are any
