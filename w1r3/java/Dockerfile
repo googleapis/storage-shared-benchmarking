@@ -12,22 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-options:
-  dynamic_substitutions: true
-  substitutionOption: 'ALLOW_LOOSE'
+FROM maven:3.9.6-eclipse-temurin-11 AS build
 
-substitutions:
-  _TAG: 'manual'
-  _WORKDIR: '.'
+WORKDIR /var/tmp/build
+COPY pom.xml /var/tmp/build/
+# Manually install the dependencies to speed up the builds on Cloud Build.
+# Kaniko caches this layer and the build does not need to download the
+# dependencies each time.
+RUN mvn dependency:resolve-plugins
+RUN mvn dependency:resolve
+RUN mvn install
+COPY src/main/java/W1R3.java /var/tmp/build/src/main/java/
+RUN mvn package
 
-steps:
-- name: 'gcr.io/kaniko-project/executor:v1.21.1'
-  args: [
-    '--log-format=text',
-    '--cache=true',
-    '--destination=gcr.io/${PROJECT_ID}/${_WORKDIR}:${_TAG}',
-    '--image-fs-extract-retry=3',
-    '--image-download-retry=3',
-    '--push-retry=3',
-    '--context=${_WORKDIR}'
-  ]
+FROM eclipse-temurin:21-jdk-jammy
+
+COPY --from=build  /var/tmp/build/target/w1r3-0.0.1-SNAPSHOT.jar /r/w1r3.jar
