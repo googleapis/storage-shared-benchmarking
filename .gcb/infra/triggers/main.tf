@@ -18,6 +18,9 @@ variable "repository" {}
 
 locals {
   builds = {
+    w1r3-cpp = {
+      workdir = "w1r3/cpp"
+    }
     w1r3-go = {
       workdir = "w1r3/go"
     }
