@@ -12,20 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM alpine:3.19 AS build
-
-# Install the minimal development tools:
-RUN apk update && \
-    apk add maven openjdk11
+FROM maven:3.9.6-eclipse-temurin-11 AS build
 
 WORKDIR /var/tmp/build
 COPY pom.xml /var/tmp/build/
+# Manually install the dependencies to speed up the builds on Cloud Build.
+# Kaniko caches this layer and the build does not need to download the
+# dependencies each time.
 RUN mvn dependency:resolve-plugins
 RUN mvn dependency:resolve
 RUN mvn install
 COPY src/main/java/W1R3.java /var/tmp/build/src/main/java/
 RUN mvn package
 
-FROM openjdk:19-jdk-alpine
+FROM eclipse-temurin:21-jdk-jammy
 
 COPY --from=build  /var/tmp/build/target/w1r3-0.0.1-SNAPSHOT.jar /r/w1r3.jar
