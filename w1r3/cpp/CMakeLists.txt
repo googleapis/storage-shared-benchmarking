@@ -40,8 +40,10 @@ execute_process(
   ERROR_VARIABLE W1R3_VERSION
   RESULT_VARIABLE ERROR_CODE
   OUTPUT_STRIP_TRAILING_WHITESPACE)
+# Manual builds on GCB may not have a `.git` directory.
 if(ERROR_CODE)
-  message(FATAL_ERROR "Error running git: ${W1R3_VERSION} ${ERROR_CODE}")
+  message("Error running git: ${W1R3_VERSION} ${ERROR_CODE}")
+  set(W1R3_VERSION "unknown")
 endif()
 
 add_executable(w1r3 w1r3.cc)
