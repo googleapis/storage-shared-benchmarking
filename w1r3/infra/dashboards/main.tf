@@ -12,6 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+module "explorer" {
+  source = "./explorer"
+}
+
 module "raw-histograms" {
   source = "./raw-histograms"
+}
+
+module "ratios" {
+  source = "./ratios"
 }
