@@ -64,7 +64,7 @@
 namespace {
 
 using namespace std::literals;
-auto constexpr kSingleShot = "SINGLE-SHORT"sv;
+auto constexpr kSingleShot = "SINGLE-SHOT"sv;
 auto constexpr kResumable = "RESUMABLE"sv;
 auto constexpr kTransportJson = "JSON"sv;
 auto constexpr kTransportGrpc = "GRPC+CFE"sv;
