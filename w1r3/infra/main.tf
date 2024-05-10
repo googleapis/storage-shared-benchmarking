@@ -49,9 +49,10 @@ resource "google_storage_bucket" "w1r3" {
 }
 
 # Create the metric descriptors used by the benchmark.
-module "metrics" {
-  source = "./metrics"
-}
+# TODO(#77) - remove the metric management until we figure out how to do better.
+# module "metrics" {
+#   source = "./metrics"
+# }
 
 module "mig-sa" {
   source  = "./mig/service-account"
@@ -71,7 +72,7 @@ module "mig-go" {
   replicas        = var.replicas
   service_account = module.mig-sa.email
   app_version     = var.app_version_go
-  depends_on      = [module.mig-sa, module.metrics]
+  depends_on      = [module.mig-sa]
 }
 
 module "mig-java" {
@@ -82,5 +83,5 @@ module "mig-java" {
   replicas        = var.replicas
   service_account = module.mig-sa.email
   app_version     = var.app_version_java
-  depends_on      = [module.mig-sa, module.metrics]
+  depends_on      = [module.mig-sa]
 }
