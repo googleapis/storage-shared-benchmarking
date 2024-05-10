@@ -128,7 +128,7 @@ resource "google_compute_region_instance_group_manager" "default" {
     name              = "primary"
   }
   base_instance_name = local.base_instance_name
-  target_size        = 3
+  target_size        = var.replicas
 
   # NOTE: the name of this resource must be unique for every update;
   #       this is why we have a app_version in the name; this way
