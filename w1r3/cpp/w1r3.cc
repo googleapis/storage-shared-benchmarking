@@ -219,7 +219,7 @@ int main(int argc, char* argv[]) try {
       make_meter_provider(google::cloud::Project(project), instance);
 
   // Create a histogram to capture the performance results.
-  auto meter = provider->GetMeter(kLatencyHistogramName);
+  auto meter = provider->GetMeter(std::string{kAppName}, kVersion, kSchema);
   histogram_ptr latency = meter->CreateDoubleHistogram(
       kLatencyHistogramName, kLatencyDescription, kLatencyHistogramUnit);
   histogram_ptr cpu = meter->CreateDoubleHistogram(
@@ -286,7 +286,8 @@ auto read_object(gc::storage::Client& client, std::string const& bucket_name,
 
 auto as_nanoseconds(struct timeval const& t) {
   using ns = std::chrono::nanoseconds;
-  return ns(std::chrono::seconds(t.tv_sec)) + ns(t.tv_usec);
+  return ns(std::chrono::seconds(t.tv_sec)) +
+         ns(std::chrono::microseconds(t.tv_usec));
 }
 
 auto cpu_now() {
@@ -553,8 +554,8 @@ void add_histogram_view(opentelemetry::sdk::metrics::MeterProvider& provider,
       opentelemetry::sdk::metrics::InstrumentSelectorFactory::Create(
           opentelemetry::sdk::metrics::InstrumentType::kHistogram, name, unit);
   auto histogram_meter_selector =
-      opentelemetry::sdk::metrics::MeterSelectorFactory::Create(name, kVersion,
-                                                                kSchema);
+      opentelemetry::sdk::metrics::MeterSelectorFactory::Create(
+          std::string{kAppName}, kVersion, kSchema);
 
   auto histogram_aggregation_config = std::make_unique<
       opentelemetry::sdk::metrics::HistogramAggregationConfig>();
