@@ -15,7 +15,7 @@
 resource "google_monitoring_dashboard" "raw-histogram" {
   lifecycle {
     prevent_destroy = true
-    ignore_changes = [dashboard_json]
+    ignore_changes  = [dashboard_json]
   }
   dashboard_json = <<EOF
 {
