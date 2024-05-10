@@ -25,8 +25,9 @@ variable "zone" {
 }
 
 variable "replicas" {
-  # Matches the number of zones in the region.
-  default = 4
+  # TODO(#80) - run one instance per region. Setting this to 4 did not work as
+  #     I (coryan@) expected.
+  default = 3
 }
 
 # use `-var=app_version_go=v2` to redeploy when the changes do not trigger
