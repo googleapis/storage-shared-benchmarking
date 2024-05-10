@@ -546,7 +546,8 @@ auto make_cpu_histogram_boundaries() {
 }
 
 void add_histogram_view(opentelemetry::sdk::metrics::MeterProvider& provider,
-                        std::string name, std::string unit,
+                        std::string const& name, std::string const& description,
+                        std::string const& unit,
                         std::vector<double> boundaries) {
   auto histogram_instrument_selector =
       opentelemetry::sdk::metrics::InstrumentSelectorFactory::Create(
@@ -564,7 +565,7 @@ void add_histogram_view(opentelemetry::sdk::metrics::MeterProvider& provider,
           std::move(histogram_aggregation_config));
 
   auto histogram_view = opentelemetry::sdk::metrics::ViewFactory::Create(
-      kLatencyHistogramName, kLatencyDescription, kLatencyHistogramUnit,
+      name, description, unit,
       opentelemetry::sdk::metrics::AggregationType::kHistogram,
       aggregation_config);
 
@@ -597,9 +598,10 @@ std::unique_ptr<opentelemetry::metrics::MeterProvider> make_meter_provider(
       *provider.get());
   p.AddMetricReader(reader);
 
-  add_histogram_view(p, kLatencyHistogramName, kLatencyHistogramUnit,
+  add_histogram_view(p, kLatencyHistogramName, kLatencyDescription,
+                     kLatencyHistogramUnit,
                      make_latency_histogram_boundaries());
-  add_histogram_view(p, kCpuHistogramName, kCpuHistogramUnit,
+  add_histogram_view(p, kCpuHistogramName, kCpuDescription, kCpuHistogramUnit,
                      make_cpu_histogram_boundaries());
 
   return provider;
