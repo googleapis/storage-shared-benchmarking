@@ -13,6 +13,10 @@
 # limitations under the License.
 
 resource "google_monitoring_dashboard" "raw-histogram" {
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes = [dashboard_json]
+  }
   dashboard_json = <<EOF
 {
     "displayName": "W1R3 - Raw Histograms",
@@ -34,6 +38,7 @@ resource "google_monitoring_dashboard" "raw-histogram" {
         "filterType": "METRIC_LABEL"
       }
     ],
+    "labels": {},
     "mosaicLayout": {
       "columns": 48,
       "tiles": [
@@ -48,9 +53,6 @@ resource "google_monitoring_dashboard" "raw-histogram" {
               },
               "dataSets": [
                 {
-                  "breakdowns": [],
-                  "dimensions": [],
-                  "measures": [],
                   "minAlignmentPeriod": "60s",
                   "plotType": "HEATMAP",
                   "targetAxis": "Y1",
@@ -192,8 +194,7 @@ resource "google_monitoring_dashboard" "raw-histogram" {
           "yPos": 16
         }
       ]
-    },
-    "labels": {}
+    }
 }
     
 EOF

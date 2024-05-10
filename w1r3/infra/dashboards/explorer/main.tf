@@ -13,6 +13,10 @@
 # limitations under the License.
 
 resource "google_monitoring_dashboard" "ratios" {
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes = [dashboard_json]
+  }
   dashboard_json = <<EOF
 {
   "displayName": "W1R3 - Explorer",
