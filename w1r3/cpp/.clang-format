@@ -30,11 +30,11 @@ IncludeCategories:
   Priority: 1000
 - Regex: '^<absl/'
   Priority: 1000
+- Regex: '^<sys/[A-Za-z0-9_]*\.h>$'
+  Priority: 10000
 - Regex: '^<.*\.h>'
   Priority: 2000
 - Regex: '^<.*\.hpp>'
   Priority: 2000
 - Regex: '^<[^/\.]*>'
   Priority: 5000
-- Regex: '^<sys/[A-Za-z0-9_]*\.h>$'
-  Priority: 10000
