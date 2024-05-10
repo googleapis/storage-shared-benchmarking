@@ -45,6 +45,11 @@ resource "google_monitoring_metric_descriptor" "default" {
   metric_kind  = "CUMULATIVE"
   value_type   = "DISTRIBUTION"
 
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [labels, description, display_name, unit]
+  }
+
   # We do not set the description field because any changes will cause terraform
   # to drop and recreate the metric, losing all the data.
   labels {
