@@ -30,6 +30,12 @@ variable "replicas" {
   default = 3
 }
 
+# use `-var=app_version_cpp=v2` to redeploy when the changes do not trigger
+# a terraform change. See mig/cpp/main.tf for details.
+variable "app_version_cpp" {
+  default = "v1"
+}
+
 # use `-var=app_version_go=v2` to redeploy when the changes do not trigger
 # a terraform change. See mig/go/main.tf for details.
 variable "app_version_go" {
@@ -37,7 +43,7 @@ variable "app_version_go" {
 }
 
 # use `-var=app_version_java=v2` to redeploy when the changes do not trigger
-# a terraform change. See mig/go/main.tf for details.
+# a terraform change. See mig/java/main.tf for details.
 variable "app_version_java" {
   default = "v1"
 }

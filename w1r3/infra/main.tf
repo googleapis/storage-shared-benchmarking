@@ -64,6 +64,17 @@ module "histograms" {
   source = "./dashboards"
 }
 
+module "mig-cpp" {
+  source          = "./mig/cpp"
+  project         = var.project
+  bucket          = google_storage_bucket.w1r3.name
+  region          = var.region
+  replicas        = var.replicas
+  service_account = module.mig-sa.email
+  app_version     = var.app_version_cpp
+  depends_on      = [module.mig-sa]
+}
+
 module "mig-go" {
   source          = "./mig/go"
   project         = var.project
