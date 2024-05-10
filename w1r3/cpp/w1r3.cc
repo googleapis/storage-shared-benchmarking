@@ -60,6 +60,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <sys/resource.h>
 
 namespace {
 
@@ -78,9 +79,12 @@ auto constexpr kMiB = kKiB * kKiB;
 auto constexpr kAppName = "w1r3"sv;
 auto constexpr kLatencyHistogramName = "ssb/w1r3/latency";
 auto constexpr kLatencyDescription =
-    "Observed latency for GCS uploads and downloads of different sizes, over "
-    "different transports";
+    "Operation latency as measured by the benchmark.";
 auto constexpr kLatencyHistogramUnit = "s";
+auto constexpr kCpuHistogramName = "ssb/w1r3/cpu";
+auto constexpr kCpuDescription =
+    "CPU usage per byte as measured by the benchmark.";
+auto constexpr kCpuHistogramUnit = "ns/B{CPU}";
 auto constexpr kVersion = "1.2.0";
 auto constexpr kSchema = "https://opentelemetry.io/schemas/1.2.0";
 
@@ -144,6 +148,9 @@ auto generate_uuid(std::mt19937_64& gen) {
   return boost::uuids::to_string(uuid_generator{gen}());
 }
 
+using histogram_ptr =
+    opentelemetry::nostd::shared_ptr<opentelemetry::metrics::Histogram<double>>;
+
 struct config {
   std::map<std::string, google::cloud::storage::Client> clients;
   std::map<std::string, uploader_function> uploaders;
@@ -152,13 +159,11 @@ struct config {
   std::string deployment;
   std::string instance;
   int iterations;
+  histogram_ptr latency;
+  histogram_ptr cpu;
 };
 
-using histogram_ptr =
-    opentelemetry::nostd::shared_ptr<opentelemetry::metrics::Histogram<double>>;
-
-void worker(std::shared_ptr<std::vector<char>> data, config cfg,
-            histogram_ptr latency);
+void worker(std::shared_ptr<std::vector<char>> data, config cfg);
 
 }  // namespace
 
@@ -214,10 +219,11 @@ int main(int argc, char* argv[]) try {
       make_meter_provider(google::cloud::Project(project), instance);
 
   // Create a histogram to capture the performance results.
-  auto meter = provider->GetMeter(kLatencyHistogramName);
-  opentelemetry::nostd::shared_ptr<opentelemetry::metrics::Histogram<double>>
-      latency = meter->CreateDoubleHistogram(
-          kLatencyHistogramName, kLatencyDescription, kLatencyHistogramUnit);
+  auto meter = provider->GetMeter(std::string{kAppName}, kVersion, kSchema);
+  histogram_ptr latency = meter->CreateDoubleHistogram(
+      kLatencyHistogramName, kLatencyDescription, kLatencyHistogramUnit);
+  histogram_ptr cpu = meter->CreateDoubleHistogram(
+      kCpuHistogramName, kCpuDescription, kCpuHistogramUnit);
 
   // Create some random data to upload. This is shared across all workers.
   auto const data_buffer_size =
@@ -235,12 +241,14 @@ int main(int argc, char* argv[]) try {
       .deployment = deployment,
       .instance = instance,
       .iterations = vm["iterations"].as<int>(),
+      .latency = std::move(latency),
+      .cpu = std::move(cpu),
   };
 
   auto const worker_count = vm["workers"].as<int>();
   std::vector<std::jthread> workers;
   for (int i = 0; i != worker_count; ++i) {
-    workers.push_back(std::jthread([&] { worker(data, cfg, latency); }));
+    workers.push_back(std::jthread([&] { worker(data, cfg); }));
   }
 
   return EXIT_SUCCESS;
@@ -276,8 +284,21 @@ auto read_object(gc::storage::Client& client, std::string const& bucket_name,
   return is.status();
 }
 
-void worker(std::shared_ptr<std::vector<char>> data, config cfg,
-            histogram_ptr latency) {
+auto as_nanoseconds(struct timeval const& t) {
+  using ns = std::chrono::nanoseconds;
+  return ns(std::chrono::seconds(t.tv_sec)) +
+         ns(std::chrono::microseconds(t.tv_usec));
+}
+
+auto cpu_now() {
+  struct rusage ru {};
+  (void)getrusage(RUSAGE_SELF, &ru);
+  return as_nanoseconds(ru.ru_utime) + as_nanoseconds(ru.ru_stime);
+}
+
+auto cpu_delta(std::chrono::nanoseconds start) { return cpu_now() - start; }
+
+void worker(std::shared_ptr<std::vector<char>> data, config cfg) {
   // Obtain a tracer for the Shared Storage Benchmarks. We create traces that
   // logically connect the client library traces for uploads and downloads.
   auto tracer =
@@ -333,11 +354,24 @@ void worker(std::shared_ptr<std::vector<char>> data, config cfg,
           tracer->StartSpan("ssb::upload", as_attributes(upload_attributes));
       auto upload = tracer->WithActiveSpan(upload_span);
       auto const start = std::chrono::steady_clock::now();
+      auto const cpu_start = cpu_now();
       auto status = uploader.second(client.second, cfg.bucket_name, object_name,
                                     object_size, *data);
+      if (!status.ok()) {
+        upload_span->SetStatus(opentelemetry::trace::StatusCode::kError,
+                               status.message());
+        upload_span->End();
+        continue;
+      }
+      auto const cpu_usage = cpu_delta(cpu_start);
       auto const elapsed = std::chrono::steady_clock::now() - start;
-      latency->Record(
+      cfg.latency->Record(
           std::chrono::duration_cast<dseconds>(elapsed).count(),
+          as_attributes(upload_attributes),
+          opentelemetry::context::Context{}.SetValue("span", upload_span));
+      cfg.cpu->Record(
+          static_cast<double>(cpu_usage.count()) /
+              static_cast<double>(object_size),
           as_attributes(upload_attributes),
           opentelemetry::context::Context{}.SetValue("span", upload_span));
       upload_span->End();
@@ -349,10 +383,23 @@ void worker(std::shared_ptr<std::vector<char>> data, config cfg,
           "ssb::download", as_attributes(download_attributes));
       auto download = tracer->WithActiveSpan(download_span);
       auto const start = std::chrono::steady_clock::now();
+      auto const cpu_start = cpu_now();
       auto status = read_object(client.second, cfg.bucket_name, object_name);
+      if (!status.ok()) {
+        download_span->SetStatus(opentelemetry::trace::StatusCode::kError,
+                                 status.message());
+        download_span->End();
+        continue;
+      }
+      auto const cpu_usage = cpu_delta(cpu_start);
       auto const elapsed = std::chrono::steady_clock::now() - start;
-      latency->Record(
+      cfg.latency->Record(
           std::chrono::duration_cast<dseconds>(elapsed).count(),
+          as_attributes(download_attributes),
+          opentelemetry::context::Context{}.SetValue("span", download_span));
+      cfg.cpu->Record(
+          static_cast<double>(cpu_usage.count()) /
+              static_cast<double>(object_size),
           as_attributes(download_attributes),
           opentelemetry::context::Context{}.SetValue("span", download_span));
       download_span->End();
@@ -456,7 +503,7 @@ auto make_resource(std::string const& instance) {
   return opentelemetry::sdk::resource::Resource::Create(resource_attributes);
 }
 
-auto make_histogram_boundaries() {
+auto make_latency_histogram_boundaries() {
   using namespace std::chrono_literals;
   // Cloud Monitoring only supports up to 200 buckets per histogram, we have
   // to choose them carefully.
@@ -484,6 +531,50 @@ auto make_histogram_boundaries() {
   return boundaries;
 }
 
+auto make_cpu_histogram_boundaries() {
+  // Cloud Monitoring only supports up to 200 buckets per histogram, we have
+  // to choose them carefully.
+  std::vector<double> boundaries;
+  // The units are ns/B, we start with increments of 0.1ns.
+  auto boundary = 0.0;
+  auto increment = 0.1;
+  for (int i = 0; i != 200; ++i) {
+    boundaries.push_back(boundary);
+    if (i != 0 && i % 100 == 0) increment *= 2;
+    boundary += increment;
+  }
+  return boundaries;
+}
+
+void add_histogram_view(opentelemetry::sdk::metrics::MeterProvider& provider,
+                        std::string const& name, std::string const& description,
+                        std::string const& unit,
+                        std::vector<double> boundaries) {
+  auto histogram_instrument_selector =
+      opentelemetry::sdk::metrics::InstrumentSelectorFactory::Create(
+          opentelemetry::sdk::metrics::InstrumentType::kHistogram, name, unit);
+  auto histogram_meter_selector =
+      opentelemetry::sdk::metrics::MeterSelectorFactory::Create(
+          std::string{kAppName}, kVersion, kSchema);
+
+  auto histogram_aggregation_config = std::make_unique<
+      opentelemetry::sdk::metrics::HistogramAggregationConfig>();
+  histogram_aggregation_config->boundaries_ = std::move(boundaries);
+  // Type-erase and convert to shared_ptr.
+  auto aggregation_config =
+      std::shared_ptr<opentelemetry::sdk::metrics::AggregationConfig>(
+          std::move(histogram_aggregation_config));
+
+  auto histogram_view = opentelemetry::sdk::metrics::ViewFactory::Create(
+      name, description, unit,
+      opentelemetry::sdk::metrics::AggregationType::kHistogram,
+      aggregation_config);
+
+  provider.AddView(std::move(histogram_instrument_selector),
+                   std::move(histogram_meter_selector),
+                   std::move(histogram_view));
+}
+
 std::unique_ptr<opentelemetry::metrics::MeterProvider> make_meter_provider(
     google::cloud::Project const& project, std::string const& instance) {
   // We want to configure the latency histogram buckets. Seemingly, this is
@@ -508,29 +599,11 @@ std::unique_ptr<opentelemetry::metrics::MeterProvider> make_meter_provider(
       *provider.get());
   p.AddMetricReader(reader);
 
-  auto histogram_instrument_selector =
-      opentelemetry::sdk::metrics::InstrumentSelectorFactory::Create(
-          opentelemetry::sdk::metrics::InstrumentType::kHistogram,
-          kLatencyHistogramName, kLatencyHistogramUnit);
-  auto histogram_meter_selector =
-      opentelemetry::sdk::metrics::MeterSelectorFactory::Create(
-          kLatencyHistogramName, kVersion, kSchema);
-
-  auto histogram_aggregation_config = std::make_unique<
-      opentelemetry::sdk::metrics::HistogramAggregationConfig>();
-  histogram_aggregation_config->boundaries_ = make_histogram_boundaries();
-  // Type-erase and convert to shared_ptr.
-  auto aggregation_config =
-      std::shared_ptr<opentelemetry::sdk::metrics::AggregationConfig>(
-          std::move(histogram_aggregation_config));
-
-  auto histogram_view = opentelemetry::sdk::metrics::ViewFactory::Create(
-      kLatencyHistogramName, kLatencyDescription, kLatencyHistogramUnit,
-      opentelemetry::sdk::metrics::AggregationType::kHistogram,
-      aggregation_config);
-
-  p.AddView(std::move(histogram_instrument_selector),
-            std::move(histogram_meter_selector), std::move(histogram_view));
+  add_histogram_view(p, kLatencyHistogramName, kLatencyDescription,
+                     kLatencyHistogramUnit,
+                     make_latency_histogram_boundaries());
+  add_histogram_view(p, kCpuHistogramName, kCpuDescription, kCpuHistogramUnit,
+                     make_cpu_histogram_boundaries());
 
   return provider;
 }
