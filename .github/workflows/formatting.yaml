@@ -19,6 +19,9 @@ jobs:
       with:
         distribution: temurin
         java-version: 11
+    - uses: actions/setup-python@v5
+      with:
+        python-version: 3.12
     - name: terraform fmt
       # Format any Terraform HCL scripts.
       run: |
@@ -39,13 +42,24 @@ jobs:
     - name: cmake-format
       run: |
         git ls-files -z -- '*CMakeLists.txt' '*.cmake' |
-          xargs -P 2 -n 1 -0 /home/runner/.local/bin/cmake-format -i
+          xargs -P 2 -n 1 -0 python3 -m cmake-format -i
+          xargs -P 2 -n 1 -0 cmake-format -i
     - name: google-java-format
       run: |
         java -version
         git ls-files -z -- '**/pom.xml' |
           xargs -0 -I{} dirname {} |
           xargs -I{} env -C {} mvn com.coveo:fmt-maven-plugin:format
+    - name: Install Black and ISort
+      run: pip install black==22.3.0 isort==5.12.0
+    - name: Sort Imports
+      run: |
+        git ls-files -z -- '*.py' ':!**/*_pb2_grpc.py' ':!**/*_pb2.py' |
+          xargs -0 python3 -m isort --quiet
+    - name: Format Python Code
+      run: |
+        git ls-files -z -- '*.py' ':!**/*_pb2_grpc.py' ':!**/*_pb2.py' |
+          xargs -0 python3 -m black --quiet
 
     - name: check-diff
       # Show any differences caused by the previous steps. If there are any
