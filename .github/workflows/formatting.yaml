@@ -38,7 +38,7 @@ jobs:
         pip install cmakelang==0.6.13
     - name: cmake-format
       run: |
-        git ls-files -z -- CMakeLists.txt '**/CMakeLists.txt' '*.cmake' |
+        git ls-files -z -- '*CMakeLists.txt' '*.cmake' |
           xargs -P 2 -n 1 -0 /home/runner/.local/bin/cmake-format -i
     - name: google-java-format
       run: |
