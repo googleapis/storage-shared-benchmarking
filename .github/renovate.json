@@ -1,5 +1,19 @@
 {
   "extends": [
+    "config:base",
     "schedule:weekdays"
+  ],
+  "regexManagers": [
+    {
+      "comment": "Automatically update dependencies in Dockerfiles",
+      "fileMatch": [
+        ".*Dockerfile$"
+      ],
+      "matchStrings": [
+        "https://github\\.com/(?<depName>.*?)/archive/(?<currentValue>.*?)\\.tar\\.gz"
+      ],
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "loose"
+    }
   ]
 }
