@@ -25,6 +25,6 @@ RUN mvn install
 COPY src/main/java/W1R3.java /var/tmp/build/src/main/java/
 RUN mvn package
 
-FROM eclipse-temurin:21-jdk-jammy
+FROM eclipse-temurin:21.0.3_9-jdk-jammy
 
 COPY --from=build  /var/tmp/build/target/w1r3-0.0.1-SNAPSHOT.jar /r/w1r3.jar
