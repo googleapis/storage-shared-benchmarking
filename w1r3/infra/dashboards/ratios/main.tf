@@ -46,7 +46,7 @@ resource "google_monitoring_dashboard" "ratios" {
         "width": 24,
         "height": 16,
         "widget": {
-          "title": "GRPC+DP latency / JSON latency for 2MiB objects: [50TH PERCENTILE]",
+          "title": "GRPC+DP / JSON latency for 2MiB objects: [50TH PERCENTILE]",
           "xyChart": {
             "chartOptions": {
               "mode": "COLOR"
@@ -93,7 +93,7 @@ resource "google_monitoring_dashboard" "ratios" {
         "width": 24,
         "height": 16,
         "widget": {
-          "title": "GRPC+DP latency / JSON latency for 100MB objects: [50TH PERCENTILE]",
+          "title": "GRPC+DP / JSON latency for 100MB objects: [50TH PERCENTILE]",
           "xyChart": {
             "chartOptions": {
               "mode": "COLOR"
@@ -141,7 +141,7 @@ resource "google_monitoring_dashboard" "ratios" {
         "width": 24,
         "height": 16,
         "widget": {
-          "title": "GRPC+DP latency / JSON latency for 100KB objects: [50TH PERCENTILE]",
+          "title": "GRPC+DP / JSON latency for 100KB objects: [50TH PERCENTILE]",
           "xyChart": {
             "chartOptions": {
               "mode": "COLOR"
@@ -232,7 +232,7 @@ resource "google_monitoring_dashboard" "ratios" {
         "width": 24,
         "height": 16,
         "widget": {
-          "title": "GRPC+DP  / JSON CPU for 100MB objects: [50TH PERCENTILE]",
+          "title": "GRPC+DP / JSON CPU for 100MB objects: [50TH PERCENTILE]",
           "xyChart": {
             "chartOptions": {
               "mode": "COLOR"
@@ -278,7 +278,7 @@ resource "google_monitoring_dashboard" "ratios" {
         "width": 24,
         "height": 16,
         "widget": {
-          "title": "GRPC+DP  / JSON CPU for 2MiB objects: [50TH PERCENTILE]",
+          "title": "GRPC+DP / JSON CPU for 2MiB objects: [50TH PERCENTILE]",
           "xyChart": {
             "chartOptions": {
               "mode": "COLOR"
@@ -324,7 +324,7 @@ resource "google_monitoring_dashboard" "ratios" {
         "width": 24,
         "height": 16,
         "widget": {
-          "title": "GRPC+DP  / JSON CPU for 2MiB objects: [50TH PERCENTILE]",
+          "title": "GRPC+DP / JSON CPU for 2MiB objects: [50TH PERCENTILE]",
           "xyChart": {
             "chartOptions": {
               "mode": "COLOR"
