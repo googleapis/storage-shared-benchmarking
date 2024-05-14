@@ -46,7 +46,7 @@ resource "google_monitoring_dashboard" "ratios" {
         "width": 24,
         "height": 16,
         "widget": {
-          "title": "GRPC+DP latency / JSON latency for 2MiB objects: [50TH PERCENTILE]",
+          "title": "GRPC+DP / JSON latency for 2MiB objects: [50TH PERCENTILE]",
           "xyChart": {
             "chartOptions": {
               "mode": "COLOR"
@@ -93,7 +93,7 @@ resource "google_monitoring_dashboard" "ratios" {
         "width": 24,
         "height": 16,
         "widget": {
-          "title": "GRPC+DP latency / JSON latency for 100MB objects: [50TH PERCENTILE]",
+          "title": "GRPC+DP / JSON latency for 100MB objects: [50TH PERCENTILE]",
           "xyChart": {
             "chartOptions": {
               "mode": "COLOR"
@@ -141,7 +141,7 @@ resource "google_monitoring_dashboard" "ratios" {
         "width": 24,
         "height": 16,
         "widget": {
-          "title": "GRPC+DP latency / JSON latency for 100KB objects: [50TH PERCENTILE]",
+          "title": "GRPC+DP / JSON latency for 100KB objects: [50TH PERCENTILE]",
           "xyChart": {
             "chartOptions": {
               "mode": "COLOR"
@@ -185,7 +185,7 @@ resource "google_monitoring_dashboard" "ratios" {
         }
       },
       {
-        "xPos": 24,
+        "yPos": 48,
         "width": 24,
         "height": 16,
         "widget": {
@@ -196,6 +196,9 @@ resource "google_monitoring_dashboard" "ratios" {
             },
             "dataSets": [
               {
+                "breakdowns": [],
+                "dimensions": [],
+                "measures": [],
                 "minAlignmentPeriod": "60s",
                 "plotType": "STACKED_AREA",
                 "targetAxis": "Y1",
@@ -212,6 +215,143 @@ resource "google_monitoring_dashboard" "ratios" {
                       "perSeriesAligner": "ALIGN_DELTA"
                     },
                     "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/latency\" resource.type=\"generic_task\""
+                  }
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 24,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "GRPC+DP / JSON CPU for 100MB objects: [50TH PERCENTILE]",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilterRatio": {
+                    "denominator": {
+                      "aggregation": {
+                        "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                        "groupByFields": [],
+                        "perSeriesAligner": "ALIGN_DELTA"
+                      },
+                      "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/cpu\" resource.type=\"generic_task\" metric.label.\"ssb_transport\"=\"JSON\" metric.label.\"ssb_object_size\"=\"100000000\""
+                    },
+                    "numerator": {
+                      "aggregation": {
+                        "alignmentPeriod": "1800s",
+                        "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                        "groupByFields": [],
+                        "perSeriesAligner": "ALIGN_DELTA"
+                      },
+                      "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/cpu\" resource.type=\"generic_task\" metric.label.\"ssb_transport\"=\"GRPC+DP\" metric.label.\"ssb_object_size\"=\"100000000\""
+                    }
+                  }
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 24,
+        "yPos": 16,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "GRPC+DP / JSON CPU for 2MiB objects: [50TH PERCENTILE]",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilterRatio": {
+                    "denominator": {
+                      "aggregation": {
+                        "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                        "groupByFields": [],
+                        "perSeriesAligner": "ALIGN_DELTA"
+                      },
+                      "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/cpu\" resource.type=\"generic_task\" metric.label.\"ssb_transport\"=\"JSON\" metric.label.\"ssb_object_size\"=\"2097152\""
+                    },
+                    "numerator": {
+                      "aggregation": {
+                        "alignmentPeriod": "1800s",
+                        "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                        "groupByFields": [],
+                        "perSeriesAligner": "ALIGN_DELTA"
+                      },
+                      "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/cpu\" resource.type=\"generic_task\" metric.label.\"ssb_transport\"=\"GRPC+DP\" metric.label.\"ssb_object_size\"=\"2097152\""
+                    }
+                  }
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 24,
+        "yPos": 32,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "GRPC+DP / JSON CPU for 2MiB objects: [50TH PERCENTILE]",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilterRatio": {
+                    "denominator": {
+                      "aggregation": {
+                        "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                        "groupByFields": [],
+                        "perSeriesAligner": "ALIGN_DELTA"
+                      },
+                      "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/cpu\" resource.type=\"generic_task\" metric.label.\"ssb_transport\"=\"JSON\" metric.label.\"ssb_object_size\"=\"100000\""
+                    },
+                    "numerator": {
+                      "aggregation": {
+                        "alignmentPeriod": "1800s",
+                        "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                        "groupByFields": [],
+                        "perSeriesAligner": "ALIGN_DELTA"
+                      },
+                      "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/cpu\" resource.type=\"generic_task\" metric.label.\"ssb_transport\"=\"GRPC+DP\" metric.label.\"ssb_object_size\"=\"100000\""
+                    }
                   }
                 }
               }
