@@ -42,7 +42,6 @@ jobs:
     - name: cmake-format
       run: |
         git ls-files -z -- '*CMakeLists.txt' '*.cmake' |
-          xargs -P 2 -n 1 -0 python3 -m cmake-format -i
           xargs -P 2 -n 1 -0 cmake-format -i
     - name: google-java-format
       run: |
