@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/profiler v0.4.0
 	cloud.google.com/go/storage v1.41.0
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.47.0
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.22.0
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.23.0
 	github.com/google/uuid v1.6.0
 	go.opentelemetry.io/contrib/detectors/gcp v1.24.0
 	go.opentelemetry.io/otel v1.25.0
