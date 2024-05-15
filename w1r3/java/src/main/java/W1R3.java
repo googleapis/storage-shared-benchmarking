@@ -44,6 +44,7 @@ import java.util.concurrent.Callable;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import runtime.Instrumentation;
 
 @Command(
     name = "w1r3",
@@ -176,12 +177,21 @@ final class W1R3 implements Callable<Integer> {
     var random = new Random(seed);
     var tracer = otelSdk.getTracer(SCOPE_NAME, SCOPE_VERSION);
     var meter = otelSdk.getMeter(SCOPE_NAME);
-    var histogram =
+    var latencyHistogram =
         meter
             .histogramBuilder("ssb/w1r3/latency")
             .setExplicitBucketBoundariesAdvice(makeLatencyBoundaries())
             .setUnit("s")
             .build();
+
+    var cpuPerByteHistogram =
+        meter
+            .histogramBuilder("ssb/w1r3/cpu")
+            .setExplicitBucketBoundariesAdvice(makeCpuBoundaries())
+            .setUnit("ns/By{CPU}")
+            .build();
+
+    Instrumentation instrumentation = new Instrumentation(latencyHistogram, cpuPerByteHistogram);
     for (long i = 0; i != this.iterations; ++i) {
       var transport = pickOne(transports, random);
       var uploader = pickOne(uploaders, random);
@@ -235,13 +245,12 @@ final class W1R3 implements Callable<Integer> {
                 .setAttribute("ssb.op", uploader.name())
                 .startSpan();
         BlobId blobId = null;
+        var uploadAttributes =
+            Attributes.builder().putAll(meterAttributes).put("ssb_op", uploader.name()).build();
         try (var uploadScope = uploadSpan.makeCurrent()) {
-          var start = System.nanoTime();
+          var measurement = instrumentation.measure(objectSize, uploadAttributes);
           blobId = uploader.upload(client, blobInfo, ByteBuffer.wrap(randomData, 0, objectSize));
-          var elapsed = System.nanoTime() - start;
-          histogram.record(
-              elapsed / nanosPerSecond,
-              Attributes.builder().putAll(meterAttributes).put("ssb_op", uploader.name()).build());
+          measurement.report();
         } catch (Exception e) {
           uploadSpan.recordException(e);
           continue;
@@ -250,15 +259,17 @@ final class W1R3 implements Callable<Integer> {
         }
 
         for (int r = 0; r != 3; ++r) {
-          var opName = "READ[" + String.valueOf(r) + "]";
+          var opName = String.format("READ[%d]", r);
           var downloadSpan =
               tracer
                   .spanBuilder("ssb::download")
                   .setAllAttributes(tracingAttributes)
                   .setAttribute("ssb.op", opName)
                   .startSpan();
+          var downloadAttributes =
+              Attributes.builder().putAll(meterAttributes).put("ssb_op", opName).build();
           try (var downloadScope = downloadSpan.makeCurrent()) {
-            var start = System.nanoTime();
+            var measurement = instrumentation.measure(objectSize, downloadAttributes);
             var reader = client.reader(blobId);
             while (reader.isOpen()) {
               var discard = ByteBuffer.allocate(2 * MiB);
@@ -267,10 +278,7 @@ final class W1R3 implements Callable<Integer> {
               }
             }
             reader.close();
-            var elapsed = System.nanoTime() - start;
-            histogram.record(
-                elapsed / nanosPerSecond,
-                Attributes.builder().putAll(meterAttributes).put("ssb_op", opName).build());
+            measurement.report();
           } catch (Exception e) {
             downloadSpan.recordException(e);
           } finally {
@@ -312,10 +320,7 @@ final class W1R3 implements Callable<Integer> {
   private static class SingleShotUploader implements Uploader {
     public BlobId upload(Storage client, BlobInfo blob, ByteBuffer input) throws Exception {
       var length = input.limit() - input.arrayOffset();
-      return client
-          .create(blob, input.array(), input.arrayOffset(), length)
-          .asBlobInfo()
-          .getBlobId();
+      return client.create(blob, input.array(), input.arrayOffset(), length).getBlobId();
     }
 
     public String name() {
@@ -429,6 +434,21 @@ final class W1R3 implements Callable<Integer> {
       boundaries.add(boundary.toMillis() / 1000.0);
       if (i != 0 && i % 10 == 0) increment = increment.multipliedBy(2);
       boundary = boundary.plus(increment);
+    }
+    return boundaries;
+  }
+
+  private static List<Double> makeCpuBoundaries() {
+    int numBuckets = 200;
+    ArrayList<Double> boundaries = new ArrayList<>(numBuckets);
+    double boundary = 0.0;
+    double increment = 0.1;
+    for (int i = 0; i < numBuckets; i++) {
+      boundaries.add(boundary);
+      if (i != 0 && i % 100 == 0) {
+        increment *= 2;
+      }
+      boundary += increment;
     }
     return boundaries;
   }
