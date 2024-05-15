@@ -29,13 +29,7 @@ import java.util.List;
  */
 public final class SmapsRollup {
 
-  private static final Path SMAPS_PATH;
-
-  static {
-    // only works on java9+
-    long pid = ProcessHandle.current().pid();
-    SMAPS_PATH = Paths.get(String.format("/proc/%d/smaps_rollup", pid));
-  }
+  private static final Path SMAPS_PATH = Paths.get("/proc/self/smaps_rollup");
 
   private SmapsRollup() {}
 
