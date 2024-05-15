@@ -191,7 +191,15 @@ final class W1R3 implements Callable<Integer> {
             .setUnit("ns/By{CPU}")
             .build();
 
-    Instrumentation instrumentation = new Instrumentation(latencyHistogram, cpuPerByteHistogram);
+    var allocatedBytesPerByteHistogram =
+        meter
+            .histogramBuilder("ssb/w1r3/memory")
+            .setExplicitBucketBoundariesAdvice(makeMemoryHistogramBoundaries())
+            .setUnit("By")
+            .build();
+
+    Instrumentation instrumentation =
+        new Instrumentation(latencyHistogram, cpuPerByteHistogram, allocatedBytesPerByteHistogram);
     for (long i = 0; i != this.iterations; ++i) {
       var transport = pickOne(transports, random);
       var uploader = pickOne(uploaders, random);
@@ -234,8 +242,6 @@ final class W1R3 implements Callable<Integer> {
               .setAllAttributes(tracingAttributes)
               .setAttribute("ssb.iteration", i)
               .startSpan();
-
-      double nanosPerSecond = Duration.ofSeconds(1).toNanos();
 
       try (var iterationScope = iterationSpan.makeCurrent()) {
         var uploadSpan =
@@ -446,6 +452,25 @@ final class W1R3 implements Callable<Integer> {
     for (int i = 0; i < numBuckets; i++) {
       boundaries.add(boundary);
       if (i != 0 && i % 100 == 0) {
+        increment *= 2;
+      }
+      boundary += increment;
+    }
+    return boundaries;
+  }
+
+  /**
+   * Cloud Monitoring only supports up to 200 buckets per histogram. Use exponentially growing
+   * bucket sizes
+   */
+  private static List<Double> makeMemoryHistogramBoundaries() {
+    int numBuckets = 200;
+    ArrayList<Double> boundaries = new ArrayList<>(numBuckets);
+    double boundary = 0.0;
+    double increment = 1.0 / 16.0;
+    for (int i = 0; i < numBuckets; i++) {
+      boundaries.add(boundary);
+      if (i != 0 && i % 16 == 0) {
         increment *= 2;
       }
       boundary += increment;

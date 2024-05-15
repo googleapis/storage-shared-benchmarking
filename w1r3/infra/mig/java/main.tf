@@ -86,7 +86,7 @@ write_files:
 
     Environment="HOME=/home/cloudservice"
     ExecStartPre=/usr/bin/docker-credential-gcr configure-docker ; /usr/bin/docker pull gcr.io/${var.project}/w1r3/java:latest
-    ExecStart=/usr/bin/docker run --rm -u 2000 --name=w1r3-java-%i gcr.io/${var.project}/w1r3/java:latest java -jar /r/w1r3.jar -project-id ${var.project} -bucket ${var.bucket} -iterations ${local.iterations} -deployment mig -workers 1
+    ExecStart=/usr/bin/docker run --rm -u 2000 --name=w1r3-java-%i gcr.io/${var.project}/w1r3/java:latest java -Xms1g -Xmx1g -XX:+AlwaysPreTouch -XX:MaxDirectMemorySize=1g -Dio.grpc.netty.shaded.io.netty.maxDirectMemory=1073741824 -XX:+UnlockDiagnosticVMOptions -XX:+UnlockExperimentalVMOptions -XX:+PrintFlagsFinal -jar /r/w1r3.jar -project-id ${var.project} -bucket ${var.bucket} -iterations ${local.iterations} -deployment mig -workers 1
     ExecStop=/usr/bin/docker stop w1r3-java-%i
     ExecStopPost=/usr/bin/docker rm w1r3-java-%i
 
