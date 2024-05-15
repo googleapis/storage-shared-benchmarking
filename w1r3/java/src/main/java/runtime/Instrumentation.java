@@ -63,7 +63,7 @@ public final class Instrumentation {
       long diffCpuNs = endCpuNs - beginCpuNs;
 
       double latencyS = elapsed / NANOS_PER_SECOND;
-      double cpuPerByte = objectSize / ((double) diffCpuNs);
+      double cpuPerByte = ((double) diffCpuNs) / objectSize;
 
       latencyHistogram.record(latencyS, attributes);
       cpuPerByteHistogram.record(cpuPerByte, attributes);
