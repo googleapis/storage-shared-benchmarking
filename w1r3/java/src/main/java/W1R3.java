@@ -177,18 +177,17 @@ final class W1R3 implements Callable<Integer> {
     var random = new Random(seed);
     var tracer = otelSdk.getTracer(SCOPE_NAME, SCOPE_VERSION);
     var meter = otelSdk.getMeter(SCOPE_NAME);
-    var bucketBoundaries = makeLatencyBoundaries();
     var latencyHistogram =
         meter
             .histogramBuilder("ssb/w1r3/latency")
-            .setExplicitBucketBoundariesAdvice(bucketBoundaries)
+            .setExplicitBucketBoundariesAdvice(makeLatencyBoundaries())
             .setUnit("s")
             .build();
 
     var cpuPerByteHistogram =
         meter
             .histogramBuilder("ssb/w1r3/cpu")
-            .setExplicitBucketBoundariesAdvice(bucketBoundaries)
+            .setExplicitBucketBoundariesAdvice(makeCpuBoundaries())
             .setUnit("ns/By{CPU}")
             .build();
 
@@ -435,6 +434,21 @@ final class W1R3 implements Callable<Integer> {
       boundaries.add(boundary.toMillis() / 1000.0);
       if (i != 0 && i % 10 == 0) increment = increment.multipliedBy(2);
       boundary = boundary.plus(increment);
+    }
+    return boundaries;
+  }
+
+  private static List<Double> makeCpuBoundaries() {
+    int numBuckets = 200;
+    ArrayList<Double> boundaries = new ArrayList<>(numBuckets);
+    double boundary = 0.0;
+    double increment = 0.1;
+    for (int i = 0; i < numBuckets; i++) {
+      boundaries.add(boundary);
+      if (i != 0 && i % 100 == 0) {
+        increment *= 2;
+      }
+      boundary += increment;
     }
     return boundaries;
   }
