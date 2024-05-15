@@ -22,7 +22,7 @@ COPY pom.xml /var/tmp/build/
 RUN mvn dependency:resolve-plugins
 RUN mvn dependency:resolve
 RUN mvn install
-COPY src/main/java/W1R3.java /var/tmp/build/src/main/java/
+COPY src/main /var/tmp/build/src/main
 RUN mvn package
 
 FROM eclipse-temurin:21.0.3_9-jdk-jammy
