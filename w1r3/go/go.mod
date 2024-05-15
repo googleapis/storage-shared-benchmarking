@@ -5,7 +5,7 @@ go 1.22
 require (
 	cloud.google.com/go/profiler v0.4.0
 	cloud.google.com/go/storage v1.41.0
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.46.0
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.47.0
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.22.0
 	github.com/google/uuid v1.6.0
 	go.opentelemetry.io/contrib/detectors/gcp v1.24.0
@@ -27,7 +27,7 @@ require (
 	cloud.google.com/go/monitoring v1.18.1 // indirect
 	cloud.google.com/go/trace v1.10.6 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.21.0 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.46.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.47.0 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20240318125728-8a4994d93e50 // indirect
