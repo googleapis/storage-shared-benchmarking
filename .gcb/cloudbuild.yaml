@@ -21,7 +21,7 @@ substitutions:
   _WORKDIR: '.'
 
 steps:
-- name: 'gcr.io/kaniko-project/executor:v1.21.1'
+- name: 'gcr.io/kaniko-project/executor:v1.23.0'
   args: [
     '--log-format=text',
     '--cache=true',
