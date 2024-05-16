@@ -21,6 +21,8 @@ import com.google.cloud.opentelemetry.trace.TraceExporter;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.Storage.BlobTargetOption;
+import com.google.cloud.storage.Storage.BlobWriteOption;
 import com.google.cloud.storage.StorageOptions;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
@@ -318,9 +320,19 @@ final class W1R3 implements Callable<Integer> {
   }
 
   private static class SingleShotUploader implements Uploader {
+    private static final BlobTargetOption[] BLOB_TARGET_OPTIONS =
+        new BlobTargetOption[] {
+          // set ifGenerationMatch=0 to allow retries
+          BlobTargetOption.doesNotExist(),
+          // disable gzip content so HTTP client doesn't try to compress a 100MiB random payload
+          BlobTargetOption.disableGzipContent()
+        };
+
     public BlobId upload(Storage client, BlobInfo blob, ByteBuffer input) throws Exception {
       var length = input.limit() - input.arrayOffset();
-      return client.create(blob, input.array(), input.arrayOffset(), length).getBlobId();
+      return client
+          .create(blob, input.array(), input.arrayOffset(), length, BLOB_TARGET_OPTIONS)
+          .getBlobId();
     }
 
     public String name() {
@@ -329,8 +341,14 @@ final class W1R3 implements Callable<Integer> {
   }
 
   private static class ResumableUploader implements Uploader {
+    private static final BlobWriteOption[] BLOB_WRITE_OPTION =
+        new BlobWriteOption[] {
+          // set ifGenerationMatch=0 to allow retries
+          BlobWriteOption.doesNotExist()
+        };
+
     public BlobId upload(Storage client, BlobInfo blob, ByteBuffer input) throws Exception {
-      var writer = client.writer(blob);
+      var writer = client.writer(blob, BLOB_WRITE_OPTION);
       writer.write(input);
       writer.close();
       return blob.getBlobId();
