@@ -19,183 +19,196 @@ resource "google_monitoring_dashboard" "raw-histogram" {
   }
   dashboard_json = <<EOF
 {
-    "displayName": "W1R3 - Raw Histograms",
-    "dashboardFilters": [
-      {
-        "labelKey": "ssb_transport",
-        "filterType": "METRIC_LABEL"
-      },
-      {
-        "labelKey": "ssb_op",
-        "filterType": "METRIC_LABEL"
-      },
-      {
-        "labelKey": "ssb_language",
-        "filterType": "METRIC_LABEL"
-      },
-      {
-        "labelKey": "ssb_object_size",
-        "filterType": "METRIC_LABEL"
-      }
-    ],
-    "labels": {},
-    "mosaicLayout": {
-      "columns": 48,
-      "tiles": [
-        {
-          "width": 24,
-          "height": 16,
-          "widget": {
-            "title": "CPU / Byte",
-            "xyChart": {
-              "chartOptions": {
-                "mode": "COLOR"
-              },
-              "dataSets": [
-                {
-                  "minAlignmentPeriod": "60s",
-                  "plotType": "HEATMAP",
-                  "targetAxis": "Y1",
-                  "timeSeriesQuery": {
-                    "timeSeriesFilter": {
-                      "aggregation": {
-                        "alignmentPeriod": "60s",
-                        "crossSeriesReducer": "REDUCE_SUM",
-                        "groupByFields": [],
-                        "perSeriesAligner": "ALIGN_DELTA"
-                      },
-                      "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/cpu\" resource.type=\"generic_task\""
-                    }
-                  }
-                }
-              ],
-              "thresholds": [],
-              "yAxis": {
-                "label": "",
-                "scale": "LINEAR"
-              }
-            }
-          }
-        },
-        {
-          "yPos": 16,
-          "width": 24,
-          "height": 16,
-          "widget": {
-            "title": "Latency",
-            "xyChart": {
-              "chartOptions": {
-                "mode": "COLOR"
-              },
-              "dataSets": [
-                {
-                  "minAlignmentPeriod": "60s",
-                  "plotType": "HEATMAP",
-                  "targetAxis": "Y1",
-                  "timeSeriesQuery": {
-                    "timeSeriesFilter": {
-                      "aggregation": {
-                        "alignmentPeriod": "60s",
-                        "crossSeriesReducer": "REDUCE_SUM",
-                        "groupByFields": [],
-                        "perSeriesAligner": "ALIGN_DELTA"
-                      },
-                      "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/latency\" resource.type=\"generic_task\""
-                    }
-                  }
-                }
-              ],
-              "thresholds": [],
-              "yAxis": {
-                "label": "",
-                "scale": "LINEAR"
-              }
-            }
-          }
-        },
-        {
-          "widget": {
-            "title": "Generic Task - Operation Latency [COUNT]",
-            "xyChart": {
-              "chartOptions": {
-                "mode": "COLOR"
-              },
-              "dataSets": [
-                {
-                  "minAlignmentPeriod": "60s",
-                  "plotType": "STACKED_AREA",
-                  "targetAxis": "Y1",
-                  "timeSeriesQuery": {
-                    "timeSeriesFilter": {
-                      "aggregation": {
-                        "alignmentPeriod": "60s",
-                        "crossSeriesReducer": "REDUCE_COUNT",
-                        "groupByFields": [
-                          "metric.label.\"ssb_version_sdk\"",
-                          "metric.label.\"ssb_version_grpc\"",
-                          "metric.label.\"ssb_version_http_client\""
-                        ],
-                        "perSeriesAligner": "ALIGN_DELTA"
-                      },
-                      "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/latency\" resource.type=\"generic_task\""
-                    }
-                  }
-                }
-              ],
-              "thresholds": [],
-              "yAxis": {
-                "label": "",
-                "scale": "LINEAR"
-              }
-            }
-          },
-          "height": 16,
-          "width": 24,
-          "xPos": 24
-        },
-        {
-          "widget": {
-            "title": "Generic Task - Operation Latency [COUNT]",
-            "xyChart": {
-              "chartOptions": {
-                "mode": "COLOR"
-              },
-              "dataSets": [
-                {
-                  "minAlignmentPeriod": "60s",
-                  "plotType": "STACKED_AREA",
-                  "targetAxis": "Y1",
-                  "timeSeriesQuery": {
-                    "timeSeriesFilter": {
-                      "aggregation": {
-                        "alignmentPeriod": "60s",
-                        "crossSeriesReducer": "REDUCE_COUNT",
-                        "groupByFields": [
-                          "metric.label.\"ssb_language\"",
-                          "resource.label.\"location\""
-                        ],
-                        "perSeriesAligner": "ALIGN_DELTA"
-                      },
-                      "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/latency\" resource.type=\"generic_task\""
-                    }
-                  }
-                }
-              ],
-              "thresholds": [],
-              "yAxis": {
-                "label": "",
-                "scale": "LINEAR"
-              }
-            }
-          },
-          "height": 16,
-          "width": 24,
-          "xPos": 24,
-          "yPos": 16
-        }
-      ]
+  "displayName": "W1R3 - Raw Histograms",
+  "dashboardFilters": [
+    {
+      "filterType": "METRIC_LABEL",
+      "labelKey": "ssb_transport",
+      "templateVariable": ""
+    },
+    {
+      "filterType": "METRIC_LABEL",
+      "labelKey": "ssb_op",
+      "templateVariable": ""
+    },
+    {
+      "filterType": "METRIC_LABEL",
+      "labelKey": "ssb_language",
+      "templateVariable": ""
+    },
+    {
+      "filterType": "METRIC_LABEL",
+      "labelKey": "ssb_object_size",
+      "templateVariable": ""
+    },
+    {
+      "filterType": "METRIC_LABEL",
+      "labelKey": "ssb_deployment",
+      "templateVariable": ""
     }
+  ],
+  "mosaicLayout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "CPU / Byte",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "measures": [],
+                "minAlignmentPeriod": "60s",
+                "plotType": "HEATMAP",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/cpu\" resource.type=\"generic_task\""
+                  }
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 16,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Latency",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "measures": [],
+                "minAlignmentPeriod": "60s",
+                "plotType": "HEATMAP",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/latency\" resource.type=\"generic_task\""
+                  }
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 16,
+        "width": 48,
+        "height": 17,
+        "widget": {
+          "title": "Generic Task - Operation Latency [COUNT]",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "measures": [],
+                "minAlignmentPeriod": "60s",
+                "plotType": "STACKED_AREA",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_COUNT",
+                      "groupByFields": [
+                        "metric.label.\"ssb_version_sdk\"",
+                        "metric.label.\"ssb_version_grpc\"",
+                        "metric.label.\"ssb_version_http_client\""
+                      ],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/latency\" resource.type=\"generic_task\""
+                  }
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 32,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Memory",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "minAlignmentPeriod": "60s",
+                "plotType": "HEATMAP",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/memory\" resource.type=\"generic_task\""
+                  }
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "labels": {}
 }
-    
 EOF
 }
