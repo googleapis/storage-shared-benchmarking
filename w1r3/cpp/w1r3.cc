@@ -43,6 +43,7 @@
 #include <opentelemetry/sdk/resource/semantic_conventions.h>
 #include <opentelemetry/trace/provider.h>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -50,6 +51,7 @@
 #include <functional>
 #include <iostream>
 #include <map>
+#include <new>
 #include <numeric>
 #include <random>
 #include <span>
@@ -81,10 +83,17 @@ auto constexpr kLatencyHistogramName = "ssb/w1r3/latency";
 auto constexpr kLatencyDescription =
     "Operation latency as measured by the benchmark.";
 auto constexpr kLatencyHistogramUnit = "s";
+
 auto constexpr kCpuHistogramName = "ssb/w1r3/cpu";
 auto constexpr kCpuDescription =
     "CPU usage per byte as measured by the benchmark.";
 auto constexpr kCpuHistogramUnit = "ns/B{CPU}";
+
+auto constexpr kMemoryHistogramName = "ssb/w1r3/memory";
+auto constexpr kMemoryDescription =
+    "Memory usage per byte as measured by the benchmark.";
+auto constexpr kMemoryHistogramUnit = "1{memory}";
+
 auto constexpr kVersion = "1.2.0";
 auto constexpr kSchema = "https://opentelemetry.io/schemas/1.2.0";
 
@@ -161,6 +170,7 @@ struct config {
   int iterations;
   histogram_ptr latency;
   histogram_ptr cpu;
+  histogram_ptr memory;
 };
 
 void worker(std::shared_ptr<std::vector<char>> data, config cfg);
@@ -224,6 +234,8 @@ int main(int argc, char* argv[]) try {
       kLatencyHistogramName, kLatencyDescription, kLatencyHistogramUnit);
   histogram_ptr cpu = meter->CreateDoubleHistogram(
       kCpuHistogramName, kCpuDescription, kCpuHistogramUnit);
+  histogram_ptr memory = meter->CreateDoubleHistogram(
+      kMemoryHistogramName, kMemoryDescription, kMemoryHistogramUnit);
 
   // Create some random data to upload. This is shared across all workers.
   auto const data_buffer_size =
@@ -243,6 +255,7 @@ int main(int argc, char* argv[]) try {
       .iterations = vm["iterations"].as<int>(),
       .latency = std::move(latency),
       .cpu = std::move(cpu),
+      .memory = std::move(memory),
   };
 
   auto const worker_count = vm["workers"].as<int>();
@@ -284,19 +297,58 @@ auto read_object(gc::storage::Client& client, std::string const& bucket_name,
   return is.status();
 }
 
-auto as_nanoseconds(struct timeval const& t) {
-  using ns = std::chrono::nanoseconds;
-  return ns(std::chrono::seconds(t.tv_sec)) +
-         ns(std::chrono::microseconds(t.tv_usec));
-}
+// We instrument `operator new` to track the number of allocated bytes. This
+// global is used to track the value.
+std::atomic<std::uint64_t> allocated_bytes{0};
 
-auto cpu_now() {
-  struct rusage ru {};
-  (void)getrusage(RUSAGE_SELF, &ru);
-  return as_nanoseconds(ru.ru_utime) + as_nanoseconds(ru.ru_stime);
-}
+class usage {
+ public:
+  usage()
+      : mem_(mem_now()),
+        clock_(std::chrono::steady_clock::now()),
+        cpu_(cpu_now()) {}
 
-auto cpu_delta(std::chrono::nanoseconds start) { return cpu_now() - start; }
+  void record(config const& cfg, std::uint64_t object_size, auto span,
+              auto attributes) const {
+    auto const cpu_usage = cpu_now() - cpu_;
+    auto const elapsed = std::chrono::steady_clock::now() - clock_;
+    auto const mem_usage = mem_now() - mem_;
+
+    auto scale = [object_size](auto value) {
+      if (object_size == 0) return static_cast<double>(value);
+      return static_cast<double>(value) / static_cast<double>(object_size);
+    };
+
+    cfg.latency->Record(
+        std::chrono::duration_cast<dseconds>(elapsed).count(), attributes,
+        opentelemetry::context::Context{}.SetValue("span", span));
+    cfg.cpu->Record(scale(cpu_usage.count()), attributes,
+                    opentelemetry::context::Context{}.SetValue("span", span));
+    cfg.memory->Record(
+        scale(mem_usage), attributes,
+        opentelemetry::context::Context{}.SetValue("span", span));
+    span->End();
+  }
+
+ private:
+  static std::uint64_t mem_now() { return allocated_bytes.load(); }
+
+  static auto as_nanoseconds(struct timeval const& t) {
+    using ns = std::chrono::nanoseconds;
+    return ns(std::chrono::seconds(t.tv_sec)) +
+           ns(std::chrono::microseconds(t.tv_usec));
+  }
+
+  static std::chrono::nanoseconds cpu_now() {
+    struct rusage ru {};
+    (void)getrusage(RUSAGE_SELF, &ru);
+    return as_nanoseconds(ru.ru_utime) + as_nanoseconds(ru.ru_stime);
+  }
+
+  std::uint64_t mem_;
+  std::chrono::steady_clock::time_point clock_;
+  std::chrono::nanoseconds cpu_;
+};
 
 void worker(std::shared_ptr<std::vector<char>> data, config cfg) {
   // Obtain a tracer for the Shared Storage Benchmarks. We create traces that
@@ -353,8 +405,7 @@ void worker(std::shared_ptr<std::vector<char>> data, config cfg) {
       auto upload_span =
           tracer->StartSpan("ssb::upload", as_attributes(upload_attributes));
       auto upload = tracer->WithActiveSpan(upload_span);
-      auto const start = std::chrono::steady_clock::now();
-      auto const cpu_start = cpu_now();
+      auto const t = usage();
       auto status = uploader.second(client.second, cfg.bucket_name, object_name,
                                     object_size, *data);
       if (!status.ok()) {
@@ -363,18 +414,7 @@ void worker(std::shared_ptr<std::vector<char>> data, config cfg) {
         upload_span->End();
         continue;
       }
-      auto const cpu_usage = cpu_delta(cpu_start);
-      auto const elapsed = std::chrono::steady_clock::now() - start;
-      cfg.latency->Record(
-          std::chrono::duration_cast<dseconds>(elapsed).count(),
-          as_attributes(upload_attributes),
-          opentelemetry::context::Context{}.SetValue("span", upload_span));
-      cfg.cpu->Record(
-          static_cast<double>(cpu_usage.count()) /
-              static_cast<double>(object_size),
-          as_attributes(upload_attributes),
-          opentelemetry::context::Context{}.SetValue("span", upload_span));
-      upload_span->End();
+      t.record(cfg, object_size, upload_span, as_attributes(upload_attributes));
     }
 
     for (auto const* op : {"READ[0]", "READ[1]", "READ[2]"}) {
@@ -382,8 +422,7 @@ void worker(std::shared_ptr<std::vector<char>> data, config cfg) {
       auto download_span = tracer->StartSpan(
           "ssb::download", as_attributes(download_attributes));
       auto download = tracer->WithActiveSpan(download_span);
-      auto const start = std::chrono::steady_clock::now();
-      auto const cpu_start = cpu_now();
+      auto const t = usage();
       auto status = read_object(client.second, cfg.bucket_name, object_name);
       if (!status.ok()) {
         download_span->SetStatus(opentelemetry::trace::StatusCode::kError,
@@ -391,18 +430,8 @@ void worker(std::shared_ptr<std::vector<char>> data, config cfg) {
         download_span->End();
         continue;
       }
-      auto const cpu_usage = cpu_delta(cpu_start);
-      auto const elapsed = std::chrono::steady_clock::now() - start;
-      cfg.latency->Record(
-          std::chrono::duration_cast<dseconds>(elapsed).count(),
-          as_attributes(download_attributes),
-          opentelemetry::context::Context{}.SetValue("span", download_span));
-      cfg.cpu->Record(
-          static_cast<double>(cpu_usage.count()) /
-              static_cast<double>(object_size),
-          as_attributes(download_attributes),
-          opentelemetry::context::Context{}.SetValue("span", download_span));
-      download_span->End();
+      t.record(cfg, object_size, download_span,
+               as_attributes(download_attributes));
     }
 
     // Delete the object after the iteration span is marked as done.
@@ -546,6 +575,23 @@ auto make_cpu_histogram_boundaries() {
   return boundaries;
 }
 
+auto make_memory_histogram_boundaries() {
+  // Cloud Monitoring only supports up to 200 buckets per histogram, we have
+  // to choose them carefully.
+  std::vector<double> boundaries;
+  // We expect the library to use less memory than the transferred size, that is
+  // why we stream the data. Use exponentially growing bucket sizes, since we
+  // have no better ideas.
+  auto boundary = 0.0;
+  auto increment = 1.0 / 16.0;
+  for (int i = 0; i != 200; ++i) {
+    boundaries.push_back(boundary);
+    boundary += increment;
+    if (i != 0 && i % 16 == 0) increment *= 2;
+  }
+  return boundaries;
+}
+
 void add_histogram_view(opentelemetry::sdk::metrics::MeterProvider& provider,
                         std::string const& name, std::string const& description,
                         std::string const& unit,
@@ -604,6 +650,8 @@ std::unique_ptr<opentelemetry::metrics::MeterProvider> make_meter_provider(
                      make_latency_histogram_boundaries());
   add_histogram_view(p, kCpuHistogramName, kCpuDescription, kCpuHistogramUnit,
                      make_cpu_histogram_boundaries());
+  add_histogram_view(p, kMemoryHistogramName, kMemoryDescription,
+                     kMemoryHistogramUnit, make_memory_histogram_boundaries());
 
   return provider;
 }
@@ -634,7 +682,7 @@ boost::program_options::variables_map parse_args(int argc, char* argv[]) {
       ("project-id", po::value<std::string>()->required(),
        "a Google Cloud Project id. The benchmark sends its results to this"
        " project as Cloud Monitoring metrics and Cloud Trace traces.")  //
-      ("tracing-rate", po::value<double>()->default_value(1.0),
+      ("tracing-rate", po::value<double>()->default_value(kDefaultSampleRate),
        "otel::BasicTracingRateOption value")  //
       ("max-queue-size", po::value<int>()->default_value(2048),
        "set the max queue size for open telemetery")  //
@@ -652,3 +700,8 @@ boost::program_options::variables_map parse_args(int argc, char* argv[]) {
 }
 
 }  // namespace
+
+void* operator new(std::size_t count) {
+  allocated_bytes.fetch_add(count);
+  return std::malloc(count);
+}
