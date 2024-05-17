@@ -169,132 +169,9 @@ resource "google_monitoring_dashboard" "ratios" {
         }
       },
       {
-        "yPos": 17,
-        "width": 16,
-        "height": 17,
-        "widget": {
-          "title": "w1r3-latency for 100KB objects - [95TH PERCENTILE]",
-          "xyChart": {
-            "chartOptions": {
-              "mode": "COLOR"
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "measures": [],
-                "minAlignmentPeriod": "300s",
-                "plotType": "LINE",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "timeSeriesFilter": {
-                    "aggregation": {
-                      "alignmentPeriod": "300s",
-                      "crossSeriesReducer": "REDUCE_PERCENTILE_95",
-                      "groupByFields": [],
-                      "perSeriesAligner": "ALIGN_DELTA"
-                    },
-                    "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/latency\" resource.type=\"generic_task\" metric.label.\"ssb_object_size\"=\"100000\""
-                  }
-                }
-              }
-            ],
-            "thresholds": [],
-            "timeshiftDuration": "0s",
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "xPos": 16,
-        "yPos": 17,
-        "width": 16,
-        "height": 17,
-        "widget": {
-          "title": "w1r3-latency for 2MiB objects - [95TH PERCENTILE]",
-          "xyChart": {
-            "chartOptions": {
-              "mode": "COLOR"
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "measures": [],
-                "minAlignmentPeriod": "300s",
-                "plotType": "LINE",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "timeSeriesFilter": {
-                    "aggregation": {
-                      "alignmentPeriod": "300s",
-                      "crossSeriesReducer": "REDUCE_PERCENTILE_95",
-                      "groupByFields": [],
-                      "perSeriesAligner": "ALIGN_DELTA"
-                    },
-                    "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/latency\" resource.type=\"generic_task\" metric.label.\"ssb_object_size\"=\"2097152\""
-                  }
-                }
-              }
-            ],
-            "thresholds": [],
-            "timeshiftDuration": "0s",
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "xPos": 32,
-        "yPos": 17,
-        "width": 16,
-        "height": 17,
-        "widget": {
-          "title": "w1r3-latency for 100MB objects - [95TH PERCENTILE]",
-          "xyChart": {
-            "chartOptions": {
-              "mode": "COLOR"
-            },
-            "dataSets": [
-              {
-                "breakdowns": [],
-                "dimensions": [],
-                "measures": [],
-                "minAlignmentPeriod": "300s",
-                "plotType": "LINE",
-                "targetAxis": "Y1",
-                "timeSeriesQuery": {
-                  "timeSeriesFilter": {
-                    "aggregation": {
-                      "alignmentPeriod": "300s",
-                      "crossSeriesReducer": "REDUCE_PERCENTILE_95",
-                      "groupByFields": [],
-                      "perSeriesAligner": "ALIGN_DELTA"
-                    },
-                    "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/latency\" resource.type=\"generic_task\" metric.label.\"ssb_object_size\"=\"100000000\""
-                  }
-                }
-              }
-            ],
-            "thresholds": [],
-            "timeshiftDuration": "0s",
-            "yAxis": {
-              "label": "",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "xPos": 16,
-        "yPos": 34,
-        "width": 16,
-        "height": 11,
+        "yPos": 51,
+        "width": 48,
+        "height": 13,
         "widget": {
           "title": "SDK Version",
           "xyChart": {
@@ -303,6 +180,9 @@ resource "google_monitoring_dashboard" "ratios" {
             },
             "dataSets": [
               {
+                "breakdowns": [],
+                "dimensions": [],
+                "measures": [],
                 "minAlignmentPeriod": "60s",
                 "plotType": "STACKED_AREA",
                 "targetAxis": "Y1",
@@ -320,6 +200,235 @@ resource "google_monitoring_dashboard" "ratios" {
                       "perSeriesAligner": "ALIGN_DELTA"
                     },
                     "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/latency\" resource.type=\"generic_task\""
+                  }
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 32,
+        "yPos": 17,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "ssb/w1r3/cpu for 100MB [50TH PERCENTILE]",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "measures": [],
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/cpu\" resource.type=\"generic_task\" metric.label.\"ssb_object_size\"=\"100000000\""
+                  }
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 17,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "ssb/w1r3/cpu for 100KB [50TH PERCENTILE]",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "measures": [],
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/cpu\" resource.type=\"generic_task\" metric.label.\"ssb_object_size\"=\"100000\""
+                  }
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 16,
+        "yPos": 17,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "ssb/w1r3/cpu for 2MiB [50TH PERCENTILE]",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "measures": [],
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/cpu\" resource.type=\"generic_task\" metric.label.\"ssb_object_size\"=\"2097152\""
+                  }
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 34,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "ssb/w1r3/cpu for 100KB [50TH PERCENTILE]",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/memory\" resource.type=\"generic_task\" metric.label.\"ssb_object_size\"=\"100000\""
+                  }
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 32,
+        "yPos": 34,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "ssb/w1r3/cpu for 100MB [50TH PERCENTILE]",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/memory\" resource.type=\"generic_task\" metric.label.\"ssb_object_size\"=\"100000000\""
+                  }
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 16,
+        "yPos": 34,
+        "width": 16,
+        "height": 17,
+        "widget": {
+          "title": "ssb/w1r3/cpu for 2MiB [50TH PERCENTILE]",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "dataSets": [
+              {
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"workload.googleapis.com/ssb/w1r3/memory\" resource.type=\"generic_task\" metric.label.\"ssb_object_size\"=\"2097152\""
                   }
                 }
               }
