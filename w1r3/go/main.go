@@ -23,6 +23,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"runtime"
 	"runtime/debug"
 	"slices"
 	"strconv"
@@ -204,6 +205,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot create %s/cpu histogram: %v", *metricsPrefix, err)
 	}
+	memory, err := meter.Float64Histogram(
+		*metricsPrefix+"/memory",
+		metric.WithUnit("1{memory}"),
+		metric.WithExplicitBucketBoundaries(memoryHistogramBoundaries()...),
+	)
+	if err != nil {
+		log.Fatalf("Cannot create %s/memory histogram: %v", *metricsPrefix, err)
+	}
 
 	config := BenchmarkConfig{
 		transports:  transports,
@@ -214,12 +223,16 @@ func main() {
 		instance:    instance.String(),
 		versions:    versions,
 		iterations:  *iterations,
+		tracer:      tracer,
+		latency:     latency,
+		cpu:         cpu,
+		memory:      memory,
 	}
 
 	var wg sync.WaitGroup
 	launch := func() {
 		defer wg.Done()
-		worker(ctx, config, tracer, latency, cpu)
+		worker(ctx, &config)
 	}
 
 	wg.Add(*workers)
@@ -238,10 +251,13 @@ type BenchmarkConfig struct {
 	instance    string
 	versions    map[string]string
 	iterations  int
+	tracer      trace.Tracer
+	latency     metric.Float64Histogram
+	cpu         metric.Float64Histogram
+	memory      metric.Float64Histogram
 }
 
-func worker(ctx context.Context, config BenchmarkConfig, tracer trace.Tracer,
-	latency metric.Float64Histogram, cpu metric.Float64Histogram) {
+func worker(ctx context.Context, config *BenchmarkConfig) {
 	// Create some random data to upload. We use the same data in all
 	// iterations.
 	data := make([]byte, slices.Max(config.objectSizes))
@@ -269,30 +285,166 @@ func worker(ctx context.Context, config BenchmarkConfig, tracer trace.Tracer,
 			attribute.String("ssb.version.http-client", getVersion(config, "golang.org/x/net")),
 		}
 
-		spanContext, span := tracer.Start(
+		spanContext, span := config.tracer.Start(
 			ctx, "ssb::iteration", trace.WithAttributes(
 				append([]attribute.KeyValue{attribute.Int("ssb.iteration", i)}, commonAttributes...)...))
 
 		stepConfig := StepConfig{
-			tracer:           tracer,
-			latency:          latency,
-			cpu:              cpu,
 			commonAttributes: commonAttributes,
 		}
 
-		objectHandle, err := uploadStep(spanContext, config, stepConfig,
+		objectHandle, err := uploadStep(spanContext, config, &stepConfig,
 			uploader, transport, objectName, data[0:objectSize])
 		if err != nil {
 			span.End()
 			continue
 		}
 
-		downloadStep(spanContext, stepConfig, objectHandle, objectSize)
+		downloadStep(spanContext, config, &stepConfig, objectHandle, objectSize)
 
 		d := objectHandle.Retryer(storage.WithPolicy(storage.RetryAlways))
 		d.Delete(spanContext)
 		span.End()
 	}
+}
+
+type StepConfig struct {
+	commonAttributes []attribute.KeyValue
+}
+
+func uploadStep(ctx context.Context,
+	config *BenchmarkConfig,
+	stepConfig *StepConfig,
+	uploader Uploader,
+	transport Transport,
+	objectName string,
+	data []byte) (*storage.ObjectHandle, error) {
+
+	uploadContext, uploadSpan := config.tracer.Start(
+		ctx, "ssb::upload", trace.WithAttributes(
+			append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)},
+				stepConfig.commonAttributes...)...))
+
+	endSpan := func(msg string, err error) {
+		uploadSpan.SetStatus(codes.Error, msg)
+		uploadSpan.RecordError(err)
+		uploadSpan.End()
+	}
+
+	start, err := StartOp()
+	if err != nil {
+		endSpan("error during StartOp()", err)
+		return nil, err
+	}
+	objectHandle, err := uploader.uploader(uploadContext, transport.client,
+		config.bucketName, objectName, data)
+	if err != nil {
+		endSpan("error during upload", err)
+		return nil, err
+	}
+	err = start.RecordOp(
+		uploadContext, config, stepConfig, int64(len(data)), uploader.name)
+	if err != nil {
+		endSpan("error during RecordOp()", err)
+		return nil, err
+	}
+	uploadSpan.End()
+	return objectHandle, nil
+}
+
+func downloadStep(ctx context.Context,
+	config *BenchmarkConfig,
+	stepConfig *StepConfig,
+	objectHandle *storage.ObjectHandle,
+	objectSize int64) {
+	for r := range 3 {
+		op := fmt.Sprintf("READ[%d]", r)
+
+		downloadContext, downloadSpan := config.tracer.Start(
+			ctx, "ssb::download", trace.WithAttributes(
+				append([]attribute.KeyValue{attribute.String("ssb.op", op)},
+					stepConfig.commonAttributes...)...))
+
+		endSpan := func(msg string, err error) {
+			downloadSpan.SetStatus(codes.Error, msg)
+			downloadSpan.RecordError(err)
+			downloadSpan.End()
+		}
+		start, err := StartOp()
+		if err != nil {
+			endSpan("error during StartOp()", err)
+			continue
+		}
+		objectReader, err := objectHandle.NewReader(downloadContext)
+		if err != nil {
+			endSpan("error while opening reader", err)
+			continue
+		}
+		// Only record data in the histogram for successful downloads. Otherwise
+		// we are mixing results for different download sizes.
+		if _, err := io.Copy(io.Discard, objectReader); err != nil {
+			endSpan("error while closing reader", err)
+			continue
+		}
+		err = start.RecordOp(downloadContext, config, stepConfig, objectSize, op)
+		if err != nil {
+			endSpan("error during RecordOp()", err)
+			continue
+		}
+		downloadSpan.End()
+	}
+}
+
+type Usage struct {
+	start time.Time
+	cpu   time.Duration
+	mem   uint64
+}
+
+func StartOp() (*Usage, error) {
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+	start := time.Now()
+	currentCpu, err := cpuStart()
+	if err != nil {
+		return nil, err
+	}
+	return &Usage{
+		start: start,
+		cpu:   currentCpu,
+		mem:   memStats.TotalAlloc,
+	}, nil
+}
+
+func (v Usage) RecordOp(
+	context context.Context,
+	config *BenchmarkConfig,
+	stepConfig *StepConfig,
+	objectSize int64,
+	op string) error {
+
+	cpuDuration, err := cpuElapsed(v.cpu)
+	if err != nil {
+		return err
+	}
+	latencyDuration := time.Since(v.start)
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+	memUsage := memStats.TotalAlloc - v.mem
+
+	cpuNanosPerByte := float64(cpuDuration.Nanoseconds())
+	memPerByte := float64(memUsage)
+	if objectSize != 0 {
+		cpuNanosPerByte = cpuNanosPerByte / float64(objectSize)
+		memPerByte = memPerByte / float64(objectSize)
+	}
+	attr := append(
+		[]attribute.KeyValue{attribute.String("ssb.op", op)},
+		stepConfig.commonAttributes...)
+	config.latency.Record(context, latencyDuration.Seconds(), metric.WithAttributes(attr...))
+	config.cpu.Record(context, cpuNanosPerByte, metric.WithAttributes(attr...))
+	config.memory.Record(context, memPerByte, metric.WithAttributes(attr...))
+	return nil
 }
 
 func totalCpu(ru syscall.Rusage) time.Duration {
@@ -316,117 +468,7 @@ func cpuElapsed(start time.Duration) (time.Duration, error) {
 	return totalCpu(end) - start, nil
 }
 
-type StepConfig struct {
-	tracer           trace.Tracer
-	latency          metric.Float64Histogram
-	cpu              metric.Float64Histogram
-	commonAttributes []attribute.KeyValue
-}
-
-func uploadStep(ctx context.Context,
-	config BenchmarkConfig,
-	stepConfig StepConfig,
-	uploader Uploader,
-	transport Transport,
-	objectName string,
-	data []byte) (*storage.ObjectHandle, error) {
-
-	uploadContext, uploadSpan := stepConfig.tracer.Start(
-		ctx, "ssb::upload", trace.WithAttributes(
-			append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)},
-				stepConfig.commonAttributes...)...))
-
-	endSpan := func(msg string, err error) {
-		uploadSpan.SetStatus(codes.Error, msg)
-		uploadSpan.RecordError(err)
-		uploadSpan.End()
-	}
-
-	cpuStart, err := cpuStart()
-	if err != nil {
-		endSpan("error during cpuStart()", err)
-		return nil, err
-	}
-	latencyStart := time.Now()
-	objectHandle, err := uploader.uploader(uploadContext, transport.client,
-		config.bucketName, objectName, data)
-	if err != nil {
-		endSpan("error during upload", err)
-		return nil, err
-	}
-	latencyDuration := time.Since(latencyStart)
-	cpuDuration, err := cpuElapsed(cpuStart)
-	if err != nil {
-		endSpan("error during cpuEnd()", err)
-		return nil, err
-	}
-	cpuNanosPerByte := float64(cpuDuration.Nanoseconds()) / float64(len(data))
-	stepConfig.cpu.Record(uploadContext, cpuNanosPerByte, metric.WithAttributes(
-		append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)},
-			stepConfig.commonAttributes...)...))
-
-	stepConfig.latency.Record(uploadContext, latencyDuration.Seconds(),
-		metric.WithAttributes(
-			append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)},
-				stepConfig.commonAttributes...)...))
-	uploadSpan.End()
-	return objectHandle, nil
-}
-
-func downloadStep(ctx context.Context,
-	stepConfig StepConfig,
-	objectHandle *storage.ObjectHandle,
-	objectSize int64) {
-	for r := range 3 {
-		op := fmt.Sprintf("READ[%d]", r)
-
-		downloadContext, downloadSpan := stepConfig.tracer.Start(
-			ctx, "ssb::download", trace.WithAttributes(
-				append([]attribute.KeyValue{attribute.String("ssb.op", op)},
-					stepConfig.commonAttributes...)...))
-
-		endSpan := func(msg string, err error) {
-			downloadSpan.SetStatus(codes.Error, msg)
-			downloadSpan.RecordError(err)
-			downloadSpan.End()
-		}
-		cpuStart, err := cpuStart()
-		if err != nil {
-			endSpan("error during cpuStart()", err)
-			continue
-		}
-		latencyStart := time.Now()
-		objectReader, err := objectHandle.NewReader(downloadContext)
-		if err != nil {
-			endSpan("error while opening reader", err)
-			continue
-		}
-		if _, err := io.Copy(io.Discard, objectReader); err != nil {
-			endSpan("error while closing reader", err)
-			continue
-		}
-		// Only record data in the histogram for successful downloads. Otherwise
-		// we are mixing results
-		downloadSpan.End()
-		latencyDuration := time.Since(latencyStart)
-
-		cpuDuration, err := cpuElapsed(cpuStart)
-		if err != nil {
-			endSpan("error during cpuEnd()", err)
-			continue
-		}
-		cpuNanosPerByte := float64(cpuDuration.Nanoseconds()) / float64(objectSize)
-		stepConfig.cpu.Record(downloadContext, cpuNanosPerByte, metric.WithAttributes(
-			append([]attribute.KeyValue{attribute.String("ssb.op", op)},
-				stepConfig.commonAttributes...)...))
-		stepConfig.latency.Record(downloadContext, latencyDuration.Seconds(),
-			metric.WithAttributes(
-				append([]attribute.KeyValue{attribute.String("ssb.op", op)},
-					stepConfig.commonAttributes...)...))
-	}
-}
-
-func getVersion(config BenchmarkConfig, name string) string {
+func getVersion(config *BenchmarkConfig, name string) string {
 	v, ok := config.versions[name]
 	if ok {
 		return v
@@ -617,6 +659,24 @@ func cpuHistogramBoundaries() []float64 {
 			increment *= 2
 		}
 		boundary += increment
+	}
+	return boundaries
+}
+
+func memoryHistogramBoundaries() []float64 {
+	boundaries := make([]float64, 0)
+	// This histogram values represent "bytes per byte". Some operations are
+	// very memory efficient, using basically 0 allocations to transfer large
+	// objects. Others require multiple allocations per byte. We use a
+	// exponentially growing bucket sizes, but keep higher resolution near 0.
+	boundary := 0.0
+	increment := 1.0 / 16.0
+	for i := range 200 {
+		boundaries = append(boundaries, boundary)
+		boundary += increment
+		if i != 0 && i%16 == 0 {
+			increment *= 2
+		}
 	}
 	return boundaries
 }
