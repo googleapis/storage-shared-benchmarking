@@ -342,8 +342,8 @@ func uploadStep(ctx context.Context,
 		endSpan("error during upload", err)
 		return nil, err
 	}
-	err = RecordOp(
-		uploadContext, config, stepConfig, int64(len(data)), &start, uploader.name)
+	err = start.RecordOp(
+		uploadContext, config, stepConfig, int64(len(data)), uploader.name)
 	if err != nil {
 		endSpan("error during RecordOp()", err)
 		return nil, err
@@ -386,7 +386,7 @@ func downloadStep(ctx context.Context,
 			endSpan("error while closing reader", err)
 			continue
 		}
-		err = RecordOp(downloadContext, config, stepConfig, objectSize, &start, op)
+		err = start.RecordOp(downloadContext, config, stepConfig, objectSize, op)
 		if err != nil {
 			endSpan("error during RecordOp()", err)
 			continue
@@ -401,37 +401,36 @@ type Usage struct {
 	mem   uint64
 }
 
-func StartOp() (Usage, error) {
+func StartOp() (*Usage, error) {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 	start := time.Now()
 	currentCpu, err := cpuStart()
 	if err != nil {
-		return Usage{}, err
+		return nil, err
 	}
-	return Usage{
+	return &Usage{
 		start: start,
 		cpu:   currentCpu,
 		mem:   memStats.TotalAlloc,
 	}, nil
 }
 
-func RecordOp(
+func (v Usage) RecordOp(
 	context context.Context,
 	config *BenchmarkConfig,
 	stepConfig *StepConfig,
 	objectSize int64,
-	startOp *Usage,
 	op string) error {
 
-	cpuDuration, err := cpuElapsed(startOp.cpu)
+	cpuDuration, err := cpuElapsed(v.cpu)
 	if err != nil {
 		return err
 	}
-	latencyDuration := time.Since(startOp.start)
+	latencyDuration := time.Since(v.start)
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	memUsage := memStats.TotalAlloc - startOp.mem
+	memUsage := memStats.TotalAlloc - v.mem
 
 	cpuNanosPerByte := float64(cpuDuration.Nanoseconds())
 	memPerByte := float64(memUsage)
@@ -666,7 +665,10 @@ func cpuHistogramBoundaries() []float64 {
 
 func memoryHistogramBoundaries() []float64 {
 	boundaries := make([]float64, 0)
-	// The units are ns/B, we start with increments of 0.1ns.
+	// This histogram values represent "bytes per byte". Some operations are
+	// very memory efficient, using basically 0 allocations to transfer large
+	// objects. Others require multiple allocations per byte. We use a
+	// exponentially growing bucket sizes, but keep higher resolution near 0.
 	boundary := 0.0
 	increment := 1.0 / 16.0
 	for i := range 200 {
