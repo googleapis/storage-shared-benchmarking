@@ -38,7 +38,6 @@ your workstation.
   ```
 - Java
   ```shell
-  env -C w1r3/java mvn dependency:resolve-plugins && \
   env -C w1r3/java/ mvn package && \
   java -jar w1r3/java/target/w1r3-0.0.1-SNAPSHOT.jar \
       -project-id ${PROJECT_ID} \
