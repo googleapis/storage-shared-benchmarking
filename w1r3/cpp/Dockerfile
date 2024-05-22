@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM alpine:3.19 AS build
+FROM alpine:3.20 AS build
 
 # Install the minimal development tools:
 RUN apk update && \
@@ -69,11 +69,11 @@ RUN cmake -G Ninja -S . -B .build -DCMAKE_BUILD_TYPE=Release && \
 
 # RUN ldd .build/w1r3 && false
 
-FROM alpine:3.19 AS deploy
+FROM alpine:3.20 AS deploy
 
 RUN apk update && \
     apk add bash ca-certificates grpc-cpp libprotobuf \
-            boost1.82-program_options libcurl crc32c
+            boost1.84-program_options libcurl crc32c
 
 COPY --from=build /var/tmp/build/w1r3/.build/w1r3 /r/w1r3
 
