@@ -73,7 +73,7 @@ FROM alpine:3.20 AS deploy
 
 RUN apk update && \
     apk add bash ca-certificates grpc-cpp libprotobuf \
-            boost1.82-program_options libcurl crc32c
+            boost1.84-program_options libcurl crc32c
 
 COPY --from=build /var/tmp/build/w1r3/.build/w1r3 /r/w1r3
 
