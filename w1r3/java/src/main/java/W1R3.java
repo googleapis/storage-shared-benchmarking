@@ -195,7 +195,7 @@ final class W1R3 implements Callable<Integer> {
         meter
             .histogramBuilder("ssb/w1r3/memory")
             .setExplicitBucketBoundariesAdvice(makeMemoryHistogramBoundaries())
-            .setUnit("By")
+            .setUnit("1{memory}")
             .build();
 
     Instrumentation instrumentation =
