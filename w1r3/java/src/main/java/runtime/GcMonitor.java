@@ -25,12 +25,12 @@ import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.MemoryUsage;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -41,6 +41,8 @@ import javax.management.openmbean.CompositeData;
 
 public final class GcMonitor implements NotificationListener {
 
+  private static final long SLEEP_INTERVAL = Duration.ofMillis(5).toMillis();
+  private static final long SLEEP_MAX_TIMEOUT = Duration.ofSeconds(5).toNanos();
   private static final Set<String> MONITORED_POOL_NAMES;
 
   static {
@@ -61,19 +63,13 @@ public final class GcMonitor implements NotificationListener {
     GcMonitor.register();
   }
 
-  private final Semaphore sem = new Semaphore(0);
   private final AtomicLong gcCount = new AtomicLong(0);
   private final AtomicReference<GcEvent> last = new AtomicReference<>();
-
-  private volatile boolean update;
 
   private GcMonitor() {}
 
   @Override
   public void handleNotification(Notification notification, Object handback) {
-    if (!update) {
-      return;
-    }
     gcCount.getAndIncrement();
     Object userData = notification.getUserData();
     if (notification.getType().equals(GARBAGE_COLLECTION_NOTIFICATION)
@@ -85,6 +81,7 @@ public final class GcMonitor implements NotificationListener {
       Map<String, MemoryUsage> after = gcInfo.getMemoryUsageAfterGc();
       GcEvent gcEvent =
           GcEvent.of(
+              System.nanoTime(),
               gcCount.get(),
               MONITORED_POOL_NAMES.stream()
                   .map(poolName -> MemoryPoolUsage.of(poolName, HEAP, before.get(poolName)))
@@ -94,18 +91,21 @@ public final class GcMonitor implements NotificationListener {
                   .collect(Collectors.toList()));
       last.set(gcEvent);
     }
-    sem.release(sem.getQueueLength());
   }
 
   private GcEvent internalAwaitGc() throws InterruptedException {
-    try {
-      update = true;
-      Runtime.getRuntime().gc();
-      sem.acquire();
-      return last.get();
-    } finally {
-      update = false;
+    final long begin = System.nanoTime();
+    Runtime.getRuntime().gc();
+    GcEvent gcEvent;
+    while ((gcEvent = last.get()).getTimestampNs() < begin) {
+      long split = System.nanoTime();
+      if (split - begin > SLEEP_MAX_TIMEOUT) {
+        // if we can't get a new value within 5 second, break out and return what we have
+        break;
+      }
+      Thread.sleep(SLEEP_INTERVAL);
     }
+    return gcEvent;
   }
 
   public static GcEvent awaitGc() throws InterruptedException {
