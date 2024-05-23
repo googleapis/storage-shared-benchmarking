@@ -25,7 +25,7 @@ variable "zone" {
 }
 
 variable "replicas" {
-  # TODO(#80) - run one instance per region. Setting this to 4 did not work as
+  # TODO(#80) - run one instance per zone. Setting this to 4 did not work as
   #     I (coryan@) expected.
   default = 3
 }
