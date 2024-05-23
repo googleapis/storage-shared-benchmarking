@@ -23,7 +23,7 @@ terraform {
 
 provider "google" {
   project = var.project
-  region  = var.region
+  region  = var.region1
   zone    = var.zone
 }
 
@@ -32,9 +32,9 @@ provider "google" {
 # Only very long running benchmarks may need data for longer than this, and they
 # can refresh the data periodically to avoid running afoul of the lifecycle
 # rule.
-resource "google_storage_bucket" "w1r3" {
-  name                        = "gcs-grpc-team-${var.project}-w1r3-${var.region}"
-  location                    = var.region
+resource "google_storage_bucket" "b1" {
+  name                        = "gcs-grpc-team-${var.project}-w1r3-${var.region1}"
+  location                    = var.region1
   force_destroy               = true
   uniform_bucket_level_access = true
 
@@ -46,6 +46,33 @@ resource "google_storage_bucket" "w1r3" {
       type = "Delete"
     }
   }
+  soft_delete_policy {
+    retention_duration_seconds = 0
+  }
+}
+
+resource "google_storage_bucket" "b2" {
+  name                        = "gcs-grpc-team-${var.project}-w1r3-${var.region2}"
+  location                    = var.region2
+  force_destroy               = true
+  uniform_bucket_level_access = true
+
+  lifecycle_rule {
+    condition {
+      age = 15
+    }
+    action {
+      type = "Delete"
+    }
+  }
+  soft_delete_policy {
+    retention_duration_seconds = 0
+  }
+}
+
+moved {
+  from = google_storage_bucket.w1r3
+  to   = google_storage_bucket.b1
 }
 
 # Create the metric descriptors used by the benchmark.
@@ -57,7 +84,7 @@ resource "google_storage_bucket" "w1r3" {
 module "mig-sa" {
   source  = "./mig/service-account"
   project = var.project
-  bucket  = google_storage_bucket.w1r3.name
+  buckets = [google_storage_bucket.b1.name, google_storage_bucket.b2.name]
 }
 
 module "histograms" {
@@ -67,8 +94,8 @@ module "histograms" {
 module "mig-cpp" {
   source          = "./mig/cpp"
   project         = var.project
-  bucket          = google_storage_bucket.w1r3.name
-  region          = var.region
+  bucket          = google_storage_bucket.b1.name
+  region          = var.region1
   replicas        = var.replicas
   service_account = module.mig-sa.email
   app_version     = var.app_version_cpp
@@ -78,8 +105,8 @@ module "mig-cpp" {
 module "mig-go" {
   source          = "./mig/go"
   project         = var.project
-  bucket          = google_storage_bucket.w1r3.name
-  region          = var.region
+  bucket          = google_storage_bucket.b1.name
+  region          = var.region1
   replicas        = var.replicas
   service_account = module.mig-sa.email
   app_version     = var.app_version_go
@@ -89,8 +116,8 @@ module "mig-go" {
 module "mig-java" {
   source          = "./mig/java"
   project         = var.project
-  bucket          = google_storage_bucket.w1r3.name
-  region          = var.region
+  bucket          = google_storage_bucket.b1.name
+  region          = var.region1
   replicas        = var.replicas
   service_account = module.mig-sa.email
   app_version     = var.app_version_java
