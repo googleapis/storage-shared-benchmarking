@@ -86,9 +86,9 @@ write_files:
     RestartSec=1s
 
     Environment="HOME=/home/cloudservice"
-    ExecStartPre=/usr/bin/docker-credential-gcr configure-docker ; /usr/bin/docker pull gcr.io/${var.project}/w1r3/java:latest
+    ExecStartPre=/usr/bin/docker-credential-gcr configure-docker ; /usr/bin/docker pull gcr.io/${var.project}/w1r3/java@sha256:80848abaeaa3c61cc464692f857a54c383495a2db27939c7842999c30776a075
     ExecStart=/usr/bin/docker run --rm -u 2000 --name=w1r3-java-%i \
-      gcr.io/${var.project}/w1r3/java:latest java \
+      gcr.io/${var.project}/w1r3/java@sha256:80848abaeaa3c61cc464692f857a54c383495a2db27939c7842999c30776a075 java \
         -Xms1g \
         -Xmx1g \
         -XX:+AlwaysPreTouch \
