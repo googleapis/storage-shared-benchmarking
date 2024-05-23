@@ -50,6 +50,7 @@ public final class SmapsRollup {
         break;
       }
     }
-    return new SetSize(rss, pss);
+    // convert from kB to B
+    return new SetSize(rss * 1000, pss * 1000);
   }
 }

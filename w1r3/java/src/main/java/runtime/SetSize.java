@@ -26,10 +26,12 @@ public final class SetSize {
     this.pss = pss;
   }
 
+  /** Number of bytes for the Resident Set Size */
   public long getRss() {
     return rss;
   }
 
+  /** Number of bytes for the Proportional Set Size */
   public long getPss() {
     return pss;
   }
