@@ -62,8 +62,9 @@ resource "google_compute_instance_template" "default" {
   }
   machine_type = "c2d-standard-${local.cpus}"
   metadata = {
-    cos-metrics-enabled = true
-    user-data           = <<EOF
+    cos-metrics-enabled    = true
+    google-logging-enabled = true
+    user-data              = <<EOF
  #cloud-config
 
 users:
