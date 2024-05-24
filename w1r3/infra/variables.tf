@@ -16,8 +16,12 @@ variable "project" {
   default = "storage-sdk-prober-project"
 }
 
-variable "region" {
+variable "region1" {
   default = "us-central1"
+}
+
+variable "region2" {
+  default = "us-east1"
 }
 
 variable "zone" {

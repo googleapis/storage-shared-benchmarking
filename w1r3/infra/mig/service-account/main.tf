@@ -16,8 +16,8 @@ variable "project" {
   type = string
 }
 
-variable "bucket" {
-  type = string
+variable "buckets" {
+  type = list(string)
 }
 
 # Create a service account to run the benchmarks. This service account will
@@ -37,8 +37,9 @@ output "email" {
 
 # Grant the service account permissions on the bucket
 resource "google_storage_bucket_iam_binding" "grant-sa-permissions-on-bucket" {
-  bucket = var.bucket
-  role   = "roles/storage.admin"
+  for_each = toset(var.buckets)
+  bucket   = each.value
+  role     = "roles/storage.admin"
   members = [
     "serviceAccount:${google_service_account.w1r3.email}",
   ]
