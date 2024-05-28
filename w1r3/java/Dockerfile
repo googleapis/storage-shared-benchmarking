@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM maven:3.9.6-eclipse-temurin-11 AS build
+FROM maven:3.9.7-eclipse-temurin-11 AS build
 
 WORKDIR /var/tmp/build
 COPY pom.xml /var/tmp/build/
