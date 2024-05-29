@@ -23,21 +23,24 @@ import java.util.stream.Collectors;
 
 public final class GcEvent {
 
+  private final long timestampNs;
   private final long count;
   private final List<MemoryPoolUsage> pre;
   private final List<MemoryPoolUsage> post;
 
-  private GcEvent(long count, List<MemoryPoolUsage> pre, List<MemoryPoolUsage> post) {
+  private GcEvent(
+      long timestampNs, long count, List<MemoryPoolUsage> pre, List<MemoryPoolUsage> post) {
+    this.timestampNs = timestampNs;
     this.count = count;
     this.pre = pre;
     this.post = post;
   }
 
-  /**
-   * Number of GC events since the start of the JVM
-   *
-   * @return
-   */
+  public long getTimestampNs() {
+    return timestampNs;
+  }
+
+  /** Number of GC events since the start of the JVM */
   public long getCount() {
     return count;
   }
@@ -55,23 +58,31 @@ public final class GcEvent {
   public GcEventDiff sub(GcEvent other) {
     //noinspection UnstableApiUsage
     return GcEventDiff.of(
+        this.timestampNs - other.timestampNs,
         this.count - other.count,
         Streams.zip(this.pre.stream(), other.post.stream(), Tuple::of)
             .map(t -> t.x().sub(t.y()))
             .collect(Collectors.toList()));
   }
 
-  public static GcEvent of(long gcCount, List<MemoryPoolUsage> pre, List<MemoryPoolUsage> post) {
-    return new GcEvent(gcCount, pre, post);
+  public static GcEvent of(
+      long timestampNs, long gcCount, List<MemoryPoolUsage> pre, List<MemoryPoolUsage> post) {
+    return new GcEvent(timestampNs, gcCount, pre, post);
   }
 
   public static final class GcEventDiff {
+    private final long durationNs;
     private final long count;
     private final List<MemoryPoolUsage> pools;
 
-    private GcEventDiff(long count, List<MemoryPoolUsage> pools) {
+    private GcEventDiff(long durationNs, long count, List<MemoryPoolUsage> pools) {
+      this.durationNs = durationNs;
       this.count = count;
       this.pools = pools;
+    }
+
+    public long getDurationNs() {
+      return durationNs;
     }
 
     public long getCount() {
@@ -87,8 +98,8 @@ public final class GcEvent {
       return String.format("%s{count=%d, pools=%s}", this.getClass().getSimpleName(), count, pools);
     }
 
-    public static GcEventDiff of(long count, List<MemoryPoolUsage> diffs) {
-      return new GcEventDiff(count, diffs);
+    public static GcEventDiff of(long durationNs, long count, List<MemoryPoolUsage> diffs) {
+      return new GcEventDiff(durationNs, count, diffs);
     }
   }
 }
