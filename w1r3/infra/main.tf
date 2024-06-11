@@ -91,35 +91,66 @@ module "histograms" {
   source = "./dashboards"
 }
 
+locals {
+  deployments = {
+    d1 = {
+      region = var.region1
+      bucket = google_storage_bucket.b1.name
+    }
+    d2 = {
+      region = var.region2
+      bucket = google_storage_bucket.b2.name
+    }
+  }
+}
+
 module "mig-cpp" {
   source          = "./mig/cpp"
   project         = var.project
-  bucket          = google_storage_bucket.b1.name
-  region          = var.region1
+  for_each        = local.deployments
+  bucket          = each.value.bucket
+  region          = each.value.region
   replicas        = var.replicas
   service_account = module.mig-sa.email
   app_version     = var.app_version_cpp
   depends_on      = [module.mig-sa]
 }
 
+moved {
+  from = module.mig-cpp
+  to   = module.mig-cpp["d1"]
+}
+
 module "mig-go" {
   source          = "./mig/go"
   project         = var.project
-  bucket          = google_storage_bucket.b1.name
-  region          = var.region1
+  for_each        = local.deployments
+  bucket          = each.value.bucket
+  region          = each.value.region
   replicas        = var.replicas
   service_account = module.mig-sa.email
   app_version     = var.app_version_go
   depends_on      = [module.mig-sa]
 }
 
+moved {
+  from = module.mig-go
+  to   = module.mig-go["d1"]
+}
+
 module "mig-java" {
   source          = "./mig/java"
   project         = var.project
-  bucket          = google_storage_bucket.b1.name
-  region          = var.region1
+  for_each        = local.deployments
+  bucket          = each.value.bucket
+  region          = each.value.region
   replicas        = var.replicas
   service_account = module.mig-sa.email
   app_version     = var.app_version_java
   depends_on      = [module.mig-sa]
+}
+
+moved {
+  from = module.mig-java
+  to   = module.mig-java["d1"]
 }
