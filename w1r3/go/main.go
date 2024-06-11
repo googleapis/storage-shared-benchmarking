@@ -213,6 +213,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot create %s/memory histogram: %v", *metricsPrefix, err)
 	}
+	region, err := discoverRegion(ctx)
+	if err != nil {
+		log.Fatalf("Cannot discover region: %v", err)
+	}
 
 	config := BenchmarkConfig{
 		transports:  transports,
@@ -221,6 +225,7 @@ func main() {
 		bucketName:  *bucket,
 		deployment:  *deployment,
 		instance:    instance.String(),
+		region:      region,
 		versions:    versions,
 		iterations:  *iterations,
 		tracer:      tracer,
@@ -249,6 +254,7 @@ type BenchmarkConfig struct {
 	bucketName  string
 	deployment  string
 	instance    string
+	region      string
 	versions    map[string]string
 	iterations  int
 	tracer      trace.Tracer
@@ -278,6 +284,7 @@ func worker(ctx context.Context, config *BenchmarkConfig) {
 			attribute.String("ssb.transport", transport.name),
 			attribute.String("ssb.deployment", config.deployment),
 			attribute.String("ssb.instance", config.instance),
+			attribute.String("ssb.region", config.region),
 			attribute.String("ssb.version", benchmarkVersion()),
 			attribute.String("ssb.version.sdk", getVersion(config, "cloud.google.com/go/storage")),
 			attribute.String("ssb.version.grpc", getVersion(config, "google.golang.org/grpc")),
@@ -320,10 +327,13 @@ func uploadStep(ctx context.Context,
 	objectName string,
 	data []byte) (*storage.ObjectHandle, error) {
 
+	opAttributes := []attribute.KeyValue{
+		attribute.String("ssb.op", uploader.name),
+		attribute.String("ssb.transfer.type", "UPLOAD"),
+	}
 	uploadContext, uploadSpan := config.tracer.Start(
 		ctx, "ssb::upload", trace.WithAttributes(
-			append([]attribute.KeyValue{attribute.String("ssb.op", uploader.name)},
-				stepConfig.commonAttributes...)...))
+			append(opAttributes, stepConfig.commonAttributes...)...))
 
 	endSpan := func(msg string, err error) {
 		uploadSpan.SetStatus(codes.Error, msg)
@@ -360,10 +370,13 @@ func downloadStep(ctx context.Context,
 	for r := range 3 {
 		op := fmt.Sprintf("READ[%d]", r)
 
+		opAttributes := []attribute.KeyValue{
+			attribute.String("ssb.op", op),
+			attribute.String("ssb.transfer.type", "DOWNLOAD"),
+		}
 		downloadContext, downloadSpan := config.tracer.Start(
 			ctx, "ssb::download", trace.WithAttributes(
-				append([]attribute.KeyValue{attribute.String("ssb.op", op)},
-					stepConfig.commonAttributes...)...))
+				append(opAttributes, stepConfig.commonAttributes...)...))
 
 		endSpan := func(msg string, err error) {
 			downloadSpan.SetStatus(codes.Error, msg)
@@ -438,9 +451,17 @@ func (v Usage) RecordOp(
 		cpuNanosPerByte = cpuNanosPerByte / float64(objectSize)
 		memPerByte = memPerByte / float64(objectSize)
 	}
-	attr := append(
-		[]attribute.KeyValue{attribute.String("ssb.op", op)},
-		stepConfig.commonAttributes...)
+	var transferType string
+	if strings.HasPrefix(op, "READ") {
+		transferType = "DONWLOAD"
+	} else {
+		transferType = "UPLOAD"
+	}
+	opAttributes := []attribute.KeyValue{
+		attribute.String("ssb.op", op),
+		attribute.String("ssb.transfer.type", transferType)}
+
+	attr := append(opAttributes, stepConfig.commonAttributes...)
 	config.latency.Record(context, latencyDuration.Seconds(), metric.WithAttributes(attr...))
 	config.cpu.Record(context, cpuNanosPerByte, metric.WithAttributes(attr...))
 	config.memory.Record(context, memPerByte, metric.WithAttributes(attr...))
@@ -679,6 +700,19 @@ func memoryHistogramBoundaries() []float64 {
 		}
 	}
 	return boundaries
+}
+
+func discoverRegion(ctx context.Context) (string, error) {
+	resource, err := gcp.NewDetector().Detect(ctx)
+	if err != nil {
+		return "", err
+	}
+	for _, attr := range resource.Attributes() {
+		if attr.Key == semconv.CloudRegionKey {
+			return attr.Value.AsString(), nil
+		}
+	}
+	return "unknown", nil
 }
 
 func enableMeter(ctx context.Context, projectID string, instance string) (func(), error) {

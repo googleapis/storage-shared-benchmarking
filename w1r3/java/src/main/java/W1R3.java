@@ -119,6 +119,7 @@ final class W1R3 implements Callable<Integer> {
       objectSizes = new Integer[] {100 * KB, 2 * MiB, 100 * MB};
     }
     var instance = UUID.randomUUID().toString();
+    var region = discoverRegion();
 
     System.out.printf("## Starting continuous GCS Java SDK benchmark%n");
     System.out.printf("# object-sizes: %s%n", Arrays.toString(this.objectSizes));
@@ -143,7 +144,8 @@ final class W1R3 implements Callable<Integer> {
         workers.add(
             new Thread(
                 (() -> {
-                  worker(clients, uploaders, randomData, random.nextInt(), instance, otelSdk);
+                  worker(
+                      clients, uploaders, randomData, random.nextInt(), instance, region, otelSdk);
                 })));
       }
       for (var t : workers) t.start();
@@ -174,6 +176,7 @@ final class W1R3 implements Callable<Integer> {
       byte[] randomData,
       int seed,
       String instance,
+      String region,
       OpenTelemetrySdk otelSdk) {
     var random = new Random(seed);
     var tracer = otelSdk.getTracer(SCOPE_NAME, SCOPE_VERSION);
@@ -218,6 +221,7 @@ final class W1R3 implements Callable<Integer> {
               .put("ssb.transport", transport.name)
               .put("ssb.deployment", deployment)
               .put("ssb.instance", instance)
+              .put("ssb.region", region)
               .put("ssb.version", "unknown")
               .put("ssb.version.sdk", SDK_VERSION)
               .put("ssb.version.grpc", GRPC_VERSION)
@@ -232,6 +236,7 @@ final class W1R3 implements Callable<Integer> {
               .put("ssb_transport", transport.name)
               .put("ssb_deployment", deployment)
               .put("ssb_instance", instance)
+              .put("ssb_region", region)
               .put("ssb_version", "unknown")
               .put("ssb_version_sdk", SDK_VERSION)
               .put("ssb_version_grpc", GRPC_VERSION)
@@ -255,7 +260,11 @@ final class W1R3 implements Callable<Integer> {
                 .startSpan();
         BlobId blobId = null;
         var uploadAttributes =
-            Attributes.builder().putAll(meterAttributes).put("ssb_op", uploader.name()).build();
+            Attributes.builder()
+                .putAll(meterAttributes)
+                .put("ssb_transfer_type", "UPLOAD")
+                .put("ssb_op", uploader.name())
+                .build();
         try (var uploadScope = uploadSpan.makeCurrent()) {
           var measurement = instrumentation.measure(objectSize, uploadAttributes);
           blobId = uploader.upload(client, blobInfo, ByteBuffer.wrap(randomData, 0, objectSize));
@@ -276,7 +285,11 @@ final class W1R3 implements Callable<Integer> {
                   .setAttribute("ssb.op", opName)
                   .startSpan();
           var downloadAttributes =
-              Attributes.builder().putAll(meterAttributes).put("ssb_op", opName).build();
+              Attributes.builder()
+                  .putAll(meterAttributes)
+                  .put("ssb_transfer_type", "DOWNLOAD")
+                  .put("ssb_op", opName)
+                  .build();
           try (var downloadScope = downloadSpan.makeCurrent()) {
             var measurement = instrumentation.measure(objectSize, downloadAttributes);
             var reader = client.reader(blobId);
@@ -372,6 +385,23 @@ final class W1R3 implements Callable<Integer> {
     var buffer = new byte[size];
     random.nextBytes(buffer);
     return buffer;
+  }
+
+  private String discoverRegion() {
+    var region = new StringBuilder();
+    var gcpResource = new GCPResource();
+    gcpResource
+        .getAttributes()
+        .forEach(
+            (attributeKey, value) -> {
+              var key = attributeKey.getKey();
+              if (key.equals("cloud.region")) {
+                region.append((String) value);
+              }
+            });
+    var r = region.toString();
+    if (r.isEmpty()) return "unknown";
+    return r;
   }
 
   private OpenTelemetrySdk setupOpenTelemetrySdk(String instance) {

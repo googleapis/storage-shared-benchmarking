@@ -136,6 +136,8 @@ using uploader_function = std::function<gc::Status(
 std::map<std::string, uploader_function> make_uploaders(
     boost::program_options::variables_map const&);
 
+std::string discover_region();
+
 std::unique_ptr<opentelemetry::metrics::MeterProvider> make_meter_provider(
     google::cloud::Project const& project, std::string const& instance);
 
@@ -167,6 +169,7 @@ struct config {
   std::string bucket_name;
   std::string deployment;
   std::string instance;
+  std::string region;
   int iterations;
   histogram_ptr latency;
   histogram_ptr cpu;
@@ -252,6 +255,7 @@ int main(int argc, char* argv[]) try {
       .bucket_name = std::move(bucket_name),
       .deployment = deployment,
       .instance = instance,
+      .region = discover_region(),
       .iterations = vm["iterations"].as<int>(),
       .latency = std::move(latency),
       .cpu = std::move(cpu),
@@ -376,6 +380,7 @@ void worker(std::shared_ptr<std::vector<char>> data, config cfg) {
           {"ssb.transport", client.first},
           {"ssb.deployment", cfg.deployment},
           {"ssb.instance", cfg.instance},
+          {"ssb.region", cfg.region},
           {"ssb.version", SSB_W1R3_VERSION},
           {"ssb.version.sdk", sdk_version},
           {"ssb.version.grpc", grpc_version},
@@ -386,6 +391,9 @@ void worker(std::shared_ptr<std::vector<char>> data, config cfg) {
     auto with_op = [common_attributes](opentelemetry::nostd::string_view op) {
       auto attr = common_attributes;
       attr.emplace_back("ssb.op", op);
+      auto const is_read =
+          std::string_view(op.data(), op.size()).starts_with("READ");
+      attr.emplace_back("ssb.transfer.type", is_read ? "DOWNLOAD" : "UPLOAD");
       return attr;
     };
     auto as_attributes = [](auto const& attr) {
@@ -511,6 +519,17 @@ std::map<std::string, uploader_function> make_uploaders(
   };
 }
 
+std::string discover_region() {
+  namespace sc = opentelemetry::sdk::resource::SemanticConventions;
+  auto detector = google::cloud::otel::MakeResourceDetector();
+  auto detected_resource = detector->Detect();
+  for (auto const& [k, v] : detected_resource.GetAttributes()) {
+    if (k == sc::kCloudRegion) 
+      return std::get<std::string>(v);
+  }
+  return std::string("unknown");
+}
+
 auto make_resource(std::string const& instance) {
   // Create an OTel resource that maps to `generic_task` on GCM.
   namespace sc = opentelemetry::sdk::resource::SemanticConventions;
@@ -521,7 +540,6 @@ auto make_resource(std::string const& instance) {
 
   auto detector = google::cloud::otel::MakeResourceDetector();
   auto detected_resource = detector->Detect();
-  auto location = std::string("global");
   for (auto const& [k, v] : detected_resource.GetAttributes()) {
     if (k == sc::kCloudRegion) {
       resource_attributes.SetAttribute(k, std::get<std::string>(v));
