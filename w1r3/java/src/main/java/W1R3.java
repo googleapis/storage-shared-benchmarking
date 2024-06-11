@@ -461,10 +461,10 @@ final class W1R3 implements Callable<Integer> {
     int numBuckets = 200;
     ArrayList<Double> boundaries = new ArrayList<>(numBuckets);
     double boundary = 0.0;
-    double increment = 0.1;
+    double increment = 1.0 / 8.0;
     for (int i = 0; i < numBuckets; i++) {
       boundaries.add(boundary);
-      if (i != 0 && i % 100 == 0) {
+      if (i != 0 && i % 32 == 0) {
         increment *= 2;
       }
       boundary += increment;

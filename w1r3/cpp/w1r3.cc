@@ -566,10 +566,10 @@ auto make_cpu_histogram_boundaries() {
   std::vector<double> boundaries;
   // The units are ns/B, we start with increments of 0.1ns.
   auto boundary = 0.0;
-  auto increment = 0.1;
+  auto increment = 1.0 / 8.0;
   for (int i = 0; i != 200; ++i) {
     boundaries.push_back(boundary);
-    if (i != 0 && i % 100 == 0) increment *= 2;
+    if (i != 0 && i % 32 == 0) increment *= 2;
     boundary += increment;
   }
   return boundaries;
