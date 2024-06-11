@@ -40,15 +40,16 @@ variable "app_version" {
 locals {
   # Including the version in the name simplifies updates. An `apply` will
   # delete the previous version and create a new one.
-  runner-template    = "java-runner-template-${var.app_version}"
-  runner-group       = "java-runner-${var.app_version}"
+  runner-template    = "w1r3-java-runner-template-"
+  runner-group       = "w1r3-java-runner-${var.app_version}"
   base_instance_name = "w1r3-java"
   cpus               = 4
   iterations         = 1000000
 }
 
-resource "google_compute_instance_template" "default" {
-  name = local.runner-template
+resource "google_compute_region_instance_template" "default" {
+  name_prefix = local.runner-template
+  region      = var.region
   disk {
     auto_delete  = true
     boot         = true
@@ -120,7 +121,6 @@ EOF
     network    = "default"
     subnetwork = "default"
   }
-  region = var.region
   scheduling {
     automatic_restart   = true
     on_host_maintenance = "MIGRATE"
@@ -140,7 +140,7 @@ resource "google_compute_region_instance_group_manager" "default" {
   name   = local.runner-group
   region = var.region
   version {
-    instance_template = google_compute_instance_template.default.id
+    instance_template = google_compute_region_instance_template.default.id
     name              = "primary"
   }
   base_instance_name = local.base_instance_name
