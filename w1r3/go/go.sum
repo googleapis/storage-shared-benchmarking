@@ -56,6 +56,8 @@ github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.46
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.46.0/go.mod h1:3S7qK2nHOO2cLID3xk6H8f55D38XswhVFzKEk0nqIbY=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.47.0 h1:S1xLQ+2lbSOXtQXdr31QfDP7JuyOZ8w2hjS1/Nvljag=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.47.0/go.mod h1:WvR1tUDExFvwYywFYvhouer9pXL8hgkQF3u/CSLRpMo=
+github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.48.0 h1:3NFk9VndrMV+XxMOxv9UersPP9FIDxsV6ggF6C1dQqU=
+github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.48.0/go.mod h1:YK6MFiRcmVMbDMnXCKbGtwNv4v28rFLCGQm5pcubBgE=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.22.0 h1:xl4IRfBXPZxwu7dIza8n6wdX5zEJpi0boF5dX22MbYE=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.22.0/go.mod h1:P69hhmQh4zwnU5iEdGVowFWg1DiP9x2KsCYBOIaP4us=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.23.0 h1:5A4O4OdC7yzkIEPl4GrS+PRYV15zsboaWBT52g3Hc0k=
@@ -66,6 +68,8 @@ github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapp
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.46.0/go.mod h1:mzI44HpPp75Z8/a1sJP1asdHdu7Wui7t10SZ9EEPPnM=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.47.0 h1:TOjDcFzPkoglwb5sa6+704TXwYgs+XsN5HYc98ksK+M=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.47.0/go.mod h1:ZC7rjqRzdhRKDK223jQ7Tsz89ZtrSSLH/VFzf7k5Sb0=
+github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.48.0 h1:ng6QH9Z4bAXCf0Z1cjR5hKESyc1BUiOrfIOhN+nHfRU=
+github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.48.0/go.mod h1:ZC7rjqRzdhRKDK223jQ7Tsz89ZtrSSLH/VFzf7k5Sb0=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/census-instrumentation/opencensus-proto v0.4.1 h1:iKLQ0xPNFxR/2hzXZMrBo8f1j86j5WHzznCCQxV/b8g=
 github.com/census-instrumentation/opencensus-proto v0.4.1/go.mod h1:4T9NM4+4Vw91VeyqjLS6ao50K5bOcLKN6Q42XnYaRYw=
