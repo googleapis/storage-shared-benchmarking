@@ -294,6 +294,8 @@ final class W1R3 implements Callable<Integer> {
         }
 
         client.delete(blobId);
+      } catch (Exception e) {
+        iterationSpan.recordException(e);
       } finally {
         iterationSpan.end();
       }
