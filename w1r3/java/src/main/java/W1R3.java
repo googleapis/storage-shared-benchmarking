@@ -201,6 +201,8 @@ final class W1R3 implements Callable<Integer> {
 
     Instrumentation instrumentation =
         new Instrumentation(latencyHistogram, cpuPerByteHistogram, allocatedBytesPerByteHistogram);
+    // pre-allocate the buffer we will use for reads
+    var readBuffer = ByteBuffer.allocate(2 * MiB);
     for (long i = 0; i != this.iterations; ++i) {
       var transport = pickOne(transports, random);
       var uploader = pickOne(uploaders, random);
@@ -275,12 +277,12 @@ final class W1R3 implements Callable<Integer> {
                   .startSpan();
           var downloadAttributes =
               Attributes.builder().putAll(meterAttributes).put("ssb_op", opName).build();
+          readBuffer.clear();
           try (var downloadScope = downloadSpan.makeCurrent()) {
             var measurement = instrumentation.measure(objectSize, downloadAttributes);
             var reader = client.reader(blobId);
             while (reader.isOpen()) {
-              var discard = ByteBuffer.allocate(2 * MiB);
-              if (reader.read(discard) == -1) {
+              if (reader.read(readBuffer) == -1) {
                 break;
               }
             }
