@@ -277,11 +277,11 @@ final class W1R3 implements Callable<Integer> {
                   .startSpan();
           var downloadAttributes =
               Attributes.builder().putAll(meterAttributes).put("ssb_op", opName).build();
-          readBuffer.clear();
           try (var downloadScope = downloadSpan.makeCurrent()) {
             var measurement = instrumentation.measure(objectSize, downloadAttributes);
             var reader = client.reader(blobId);
             while (reader.isOpen()) {
+              readBuffer.clear();
               if (reader.read(readBuffer) == -1) {
                 break;
               }
