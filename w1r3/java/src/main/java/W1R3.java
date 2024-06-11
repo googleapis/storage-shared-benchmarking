@@ -144,7 +144,8 @@ final class W1R3 implements Callable<Integer> {
         workers.add(
             new Thread(
                 (() -> {
-                  worker(clients, uploaders, randomData, random.nextInt(), instance, region, otelSdk);
+                  worker(
+                      clients, uploaders, randomData, random.nextInt(), instance, region, otelSdk);
                 })));
       }
       for (var t : workers) t.start();
@@ -258,11 +259,12 @@ final class W1R3 implements Callable<Integer> {
                 .setAttribute("ssb.op", uploader.name())
                 .startSpan();
         BlobId blobId = null;
-        var uploadAttributes = Attributes.builder()
-            .putAll(meterAttributes)
-            .put("ssb_transfer_type", "UPLOAD")
-            .put("ssb_op", uploader.name())
-            .build();
+        var uploadAttributes =
+            Attributes.builder()
+                .putAll(meterAttributes)
+                .put("ssb_transfer_type", "UPLOAD")
+                .put("ssb_op", uploader.name())
+                .build();
         try (var uploadScope = uploadSpan.makeCurrent()) {
           var measurement = instrumentation.measure(objectSize, uploadAttributes);
           blobId = uploader.upload(client, blobInfo, ByteBuffer.wrap(randomData, 0, objectSize));
@@ -282,11 +284,12 @@ final class W1R3 implements Callable<Integer> {
                   .setAllAttributes(tracingAttributes)
                   .setAttribute("ssb.op", opName)
                   .startSpan();
-          var downloadAttributes = Attributes.builder()
-            .putAll(meterAttributes)
-            .put("ssb_transfer_type", "DOWNLOAD")
-            .put("ssb_op", opName)
-            .build();
+          var downloadAttributes =
+              Attributes.builder()
+                  .putAll(meterAttributes)
+                  .put("ssb_transfer_type", "DOWNLOAD")
+                  .put("ssb_op", opName)
+                  .build();
           try (var downloadScope = downloadSpan.makeCurrent()) {
             var measurement = instrumentation.measure(objectSize, downloadAttributes);
             var reader = client.reader(blobId);
