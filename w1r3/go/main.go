@@ -652,10 +652,10 @@ func cpuHistogramBoundaries() []float64 {
 	boundaries := make([]float64, 0)
 	// The units are ns/B, we start with increments of 0.1ns.
 	boundary := 0.0
-	increment := 0.1
+	increment := 1.0 / 8.0
 	for i := range 200 {
 		boundaries = append(boundaries, boundary)
-		if i != 0 && i%100 == 0 {
+		if i != 0 && i%32 == 0 {
 			increment *= 2
 		}
 		boundary += increment
