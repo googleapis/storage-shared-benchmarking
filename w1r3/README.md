@@ -53,15 +53,15 @@ force a deployment using:
 
 - C++
   ```shell
-  gcloud beta compute instance-groups managed  --project=storage-sdk-prober-project rolling-action restart --region=us-central1 cpp-runner-v1
+  gcloud beta compute instance-groups managed  --project=storage-sdk-prober-project rolling-action restart --region=us-central1 w1r3-cpp-runner-v1
   ```
 - Go
   ```shell
-  gcloud beta compute instance-groups managed  --project=storage-sdk-prober-project rolling-action restart --region=us-central1 go-runner-v1
+  gcloud beta compute instance-groups managed  --project=storage-sdk-prober-project rolling-action restart --region=us-central1 w1r3-go-runner-v1
   ```
 - Java
   ```shell
-  gcloud beta compute instance-groups managed  --project=storage-sdk-prober-project rolling-action restart --region=us-central1 java-runner-v1
+  gcloud beta compute instance-groups managed  --project=storage-sdk-prober-project rolling-action restart --region=us-central1 w1r3-java-runner-v1
   ```
 
 ## Updating the infrastructure
