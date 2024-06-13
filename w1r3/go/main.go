@@ -453,7 +453,7 @@ func (v Usage) RecordOp(
 	}
 	var transferType string
 	if strings.HasPrefix(op, "READ") {
-		transferType = "DONWLOAD"
+		transferType = "DOWNLOAD"
 	} else {
 		transferType = "UPLOAD"
 	}
