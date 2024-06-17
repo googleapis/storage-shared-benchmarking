@@ -23,3 +23,7 @@ module "raw-histograms" {
 module "ratios" {
   source = "./ratios"
 }
+
+module "dp_vs_json" {
+  source = "dp_vs_json"
+}
