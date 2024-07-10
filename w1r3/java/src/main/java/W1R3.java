@@ -200,7 +200,11 @@ final class W1R3 implements Callable<Integer> {
       Transport[] transports, Uploader[] uploaders, byte[] randomData, Random random, Otel otel) {
     LOGGER.trace(
         "worker(transports : {}, uploaders : {}, randomData.length : {}, random : {}, otel : {})",
-        transports, uploaders, randomData.length, random, otel);
+        transports,
+        uploaders,
+        randomData.length,
+        random,
+        otel);
     var tracer = otel.getBaseTracer();
     var meter = otel.getBaseMeter();
     var latencyHistogram =
