@@ -1,7 +1,8 @@
 {
   "extends": [
     "config:base",
-    "schedule:weekdays"
+    "schedule:weekdays",
+    ":combinePatchMinorReleases"
   ],
   "regexManagers": [
     {
@@ -14,6 +15,46 @@
       ],
       "datasourceTemplate": "github-releases",
       "versioningTemplate": "loose"
+    }
+  ],
+  "packageRules": [
+    {
+      "groupName": "maven plugins",
+      "packagePatterns": [
+        "^org.apache.maven",
+        "^org.jacoco:",
+        "^org.codehaus.mojo:",
+        "^org.sonatype.plugins:",
+        "^com.coveo:",
+        "^com.google.cloud:google-cloud-shared-config"
+      ],
+      "semanticCommitType": "build",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "groupName": "storage dependencies",
+      "packagePatterns": [
+        "^com.google.cloud:google-cloud-storage",
+        "^com.google.cloud:google-cloud-storage-bom",
+        "^com.google.api.grpc:proto-google-cloud-storage-v2",
+        "^com.google.api.grpc:grpc-google-cloud-storage-v2",
+        "^com.google.api.grpc:gapic-google-cloud-storage-v2",
+        "^com.google.api.grpc:proto-google-cloud-storage-control-v2",
+        "^com.google.api.grpc:grpc-google-cloud-storage-control-v2",
+        "^com.google.cloud:google-cloud-storage-control",
+        "^com.google.cloud:libraries-bom"
+      ],
+      "semanticCommitType": "deps",
+      "semanticCommitScope": null
+    },
+    {
+      "groupName": "open telemetry dependencies",
+      "packagePatterns": [
+        "^com.google.cloud.opentelemetry:",
+        "^io.opentelemetry:"
+      ],
+      "semanticCommitType": "deps",
+      "semanticCommitScope": null
     }
   ]
 }
