@@ -101,7 +101,7 @@
   <logger name="com.google.cloud.storage" level="warn"/>
 
   <!-- this benchmark's appender -->
-  <logger name="W1R3" level="trace"/>
+  <logger name="W1R3" level="info"/>
 
   <root level="info">
     <appender-ref ref="STDERR"/>
