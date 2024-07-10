@@ -23,6 +23,12 @@ import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobTargetOption;
 import com.google.cloud.storage.StorageOptions;
+import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningScheduledExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
@@ -42,6 +48,8 @@ import java.util.Properties;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
+import java.util.stream.IntStream;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -136,20 +144,32 @@ final class W1R3 implements Callable<Integer> {
     var random = new SecureRandom();
     var randomData = makeRandomData(this.objectSizes, random);
 
+    ListeningScheduledExecutorService executorService =
+        MoreExecutors.listeningDecorator(
+            Executors.newScheduledThreadPool(
+                workers, new ThreadFactoryBuilder().setNameFormat("worker-%d").build()));
+
     try (var otelSdk = setupOpenTelemetrySdk(instance)) {
       var clients = makeClients(transports);
       var uploaders = makeUploaders();
-      var workers = new ArrayList<Thread>();
-      for (int i = 0; i != this.workers; ++i) {
-        workers.add(
-            new Thread(
-                (() -> {
-                  worker(
-                      clients, uploaders, randomData, random.nextInt(), instance, region, otelSdk);
-                })));
-      }
-      for (var t : workers) t.start();
-      for (var t : workers) t.join();
+
+      List<ListenableFuture<?>> runningWorkers =
+          IntStream.range(0, workers)
+              .mapToObj(
+                  i ->
+                      executorService.submit(
+                          () ->
+                              worker(
+                                  clients,
+                                  uploaders,
+                                  randomData,
+                                  random.nextInt(),
+                                  instance,
+                                  region,
+                                  otelSdk)))
+              .collect(ImmutableList.toImmutableList());
+
+      Futures.allAsList(runningWorkers).get();
     }
     return 0;
   }
