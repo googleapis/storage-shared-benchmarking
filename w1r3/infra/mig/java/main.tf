@@ -102,8 +102,7 @@ write_files:
           -project-id ${var.project} \
           -bucket ${var.bucket} \
           -iterations ${local.iterations} \
-          -deployment mig \
-          -workers 1
+          -deployment mig
     ExecStop=/usr/bin/docker stop w1r3-java-%i
     ExecStopPost=/usr/bin/docker rm w1r3-java-%i
 

@@ -23,9 +23,6 @@ import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobTargetOption;
 import com.google.cloud.storage.StorageOptions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -49,7 +46,6 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
-import java.util.stream.IntStream;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -100,12 +96,6 @@ final class W1R3 implements Callable<Integer> {
   private int iterations;
 
   @Option(
-      names = "-workers",
-      description = "the number of concurrent threads running the benchmark",
-      defaultValue = "1")
-  private int workers;
-
-  @Option(
       names = "-transport",
       description = "the transports (JSON, GRPC+CFE, GRPC+DP) used by the benchmark")
   private String[] transports;
@@ -147,29 +137,15 @@ final class W1R3 implements Callable<Integer> {
     ListeningScheduledExecutorService executorService =
         MoreExecutors.listeningDecorator(
             Executors.newScheduledThreadPool(
-                workers, new ThreadFactoryBuilder().setNameFormat("worker-%d").build()));
+                1, new ThreadFactoryBuilder().setNameFormat("worker-%d").build()));
 
     try (var otelSdk = setupOpenTelemetrySdk(instance)) {
       var clients = makeClients(transports);
       var uploaders = makeUploaders();
 
-      List<ListenableFuture<?>> runningWorkers =
-          IntStream.range(0, workers)
-              .mapToObj(
-                  i ->
-                      executorService.submit(
-                          () ->
-                              worker(
-                                  clients,
-                                  uploaders,
-                                  randomData,
-                                  random.nextInt(),
-                                  instance,
-                                  region,
-                                  otelSdk)))
-              .collect(ImmutableList.toImmutableList());
-
-      Futures.allAsList(runningWorkers).get();
+      executorService
+          .submit(() -> worker(clients, uploaders, randomData, random, instance, region, otelSdk))
+          .get();
     }
     return 0;
   }
@@ -194,11 +170,10 @@ final class W1R3 implements Callable<Integer> {
       Transport[] transports,
       Uploader[] uploaders,
       byte[] randomData,
-      int seed,
+      Random random,
       String instance,
       String region,
       OpenTelemetrySdk otelSdk) {
-    var random = new Random(seed);
     var tracer = otelSdk.getTracer(SCOPE_NAME, SCOPE_VERSION);
     var meter = otelSdk.getMeter(SCOPE_NAME);
     var latencyHistogram =
