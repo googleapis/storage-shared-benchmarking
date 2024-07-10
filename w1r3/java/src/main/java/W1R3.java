@@ -12,12 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import com.google.cloud.opentelemetry.detectors.GCPResource;
-import com.google.cloud.opentelemetry.metric.GoogleCloudMetricExporter;
-import com.google.cloud.opentelemetry.metric.MetricConfiguration;
-import com.google.cloud.opentelemetry.metric.MetricDescriptorStrategy;
-import com.google.cloud.opentelemetry.trace.TraceConfiguration;
-import com.google.cloud.opentelemetry.trace.TraceExporter;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
@@ -27,13 +21,6 @@ import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.opentelemetry.api.common.Attributes;
-import io.opentelemetry.sdk.OpenTelemetrySdk;
-import io.opentelemetry.sdk.metrics.SdkMeterProvider;
-import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
-import io.opentelemetry.sdk.resources.Resource;
-import io.opentelemetry.sdk.trace.SdkTracerProvider;
-import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
-import io.opentelemetry.sdk.trace.samplers.Sampler;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
@@ -46,6 +33,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
+import otel_support.Otel;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -60,7 +48,6 @@ final class W1R3 implements Callable<Integer> {
   private static final String SERVICE_NAME = "w1r3";
   private static final String SCOPE_NAME = "w1r3";
   private static final String SCOPE_VERSION = "0.0.1";
-  private static final double DEFAULT_SAMPLE_RATE = 0.05;
   private static final int KB = 1000;
   private static final int KiB = 1024;
   private static final int MB = 1000 * KB;
@@ -117,7 +104,7 @@ final class W1R3 implements Callable<Integer> {
       objectSizes = new Integer[] {100 * KB, 2 * MiB, 100 * MB};
     }
     var instance = UUID.randomUUID().toString();
-    var region = discoverRegion();
+    var region = Otel.discoverRegion();
 
     System.out.printf("## Starting continuous GCS Java SDK benchmark%n");
     System.out.printf("# object-sizes: %s%n", Arrays.toString(this.objectSizes));
@@ -139,13 +126,45 @@ final class W1R3 implements Callable<Integer> {
             Executors.newScheduledThreadPool(
                 1, new ThreadFactoryBuilder().setNameFormat("worker-%d").build()));
 
-    try (var otelSdk = setupOpenTelemetrySdk(instance)) {
+    var baseTracingAttributes =
+        Attributes.builder()
+            .put("ssb.language", "java")
+            .put("ssb.deployment", deployment)
+            .put("ssb.instance", instance)
+            .put("ssb.region", region)
+            .put("ssb.version", "unknown")
+            .put("ssb.version.sdk", SDK_VERSION)
+            .put("ssb.version.grpc", GRPC_VERSION)
+            .put("ssb.version.protobuf", PROTOBUF_VERSION)
+            .put("ssb.version.http-client", HTTP_CLIENT_VERSION)
+            .build();
+
+    var baseMeterAttributes =
+        Attributes.builder()
+            .put("ssb_language", "java")
+            .put("ssb_deployment", deployment)
+            .put("ssb_instance", instance)
+            .put("ssb_region", region)
+            .put("ssb_version", "unknown")
+            .put("ssb_version_sdk", SDK_VERSION)
+            .put("ssb_version_grpc", GRPC_VERSION)
+            .put("ssb_version_protobuf", PROTOBUF_VERSION)
+            .put("ssb_version_http_client", HTTP_CLIENT_VERSION)
+            .build();
+
+    try (var otel =
+        Otel.create(
+            SERVICE_NAME,
+            project,
+            instance,
+            baseMeterAttributes,
+            baseTracingAttributes,
+            SCOPE_NAME,
+            SCOPE_VERSION)) {
       var clients = makeClients(transports);
       var uploaders = makeUploaders();
 
-      executorService
-          .submit(() -> worker(clients, uploaders, randomData, random, instance, region, otelSdk))
-          .get();
+      executorService.submit(() -> worker(clients, uploaders, randomData, random, otel)).get();
     }
     return 0;
   }
@@ -167,15 +186,9 @@ final class W1R3 implements Callable<Integer> {
   }
 
   private void worker(
-      Transport[] transports,
-      Uploader[] uploaders,
-      byte[] randomData,
-      Random random,
-      String instance,
-      String region,
-      OpenTelemetrySdk otelSdk) {
-    var tracer = otelSdk.getTracer(SCOPE_NAME, SCOPE_VERSION);
-    var meter = otelSdk.getMeter(SCOPE_NAME);
+      Transport[] transports, Uploader[] uploaders, byte[] randomData, Random random, Otel otel) {
+    var tracer = otel.getBaseTracer();
+    var meter = otel.getBaseMeter();
     var latencyHistogram =
         meter
             .histogramBuilder("ssb/w1r3/latency")
@@ -210,33 +223,15 @@ final class W1R3 implements Callable<Integer> {
       var blobInfo = BlobInfo.newBuilder(BlobId.of(this.bucket, objectName)).build();
 
       var tracingAttributes =
-          Attributes.builder()
-              .put("ssb.language", "java")
+          otel.newTracingAttributesBuilder()
               .put("ssb.object-size", objectSize)
               .put("ssb.transport", transport.name)
-              .put("ssb.deployment", deployment)
-              .put("ssb.instance", instance)
-              .put("ssb.region", region)
-              .put("ssb.version", "unknown")
-              .put("ssb.version.sdk", SDK_VERSION)
-              .put("ssb.version.grpc", GRPC_VERSION)
-              .put("ssb.version.protobuf", PROTOBUF_VERSION)
-              .put("ssb.version.http-client", HTTP_CLIENT_VERSION)
               .build();
 
       var meterAttributes =
-          Attributes.builder()
-              .put("ssb_language", "java")
+          otel.newMeterAttributesBuilder()
               .put("ssb_object_size", objectSize)
               .put("ssb_transport", transport.name)
-              .put("ssb_deployment", deployment)
-              .put("ssb_instance", instance)
-              .put("ssb_region", region)
-              .put("ssb_version", "unknown")
-              .put("ssb_version_sdk", SDK_VERSION)
-              .put("ssb_version_grpc", GRPC_VERSION)
-              .put("ssb_version_protobuf", PROTOBUF_VERSION)
-              .put("ssb_version_http_client", HTTP_CLIENT_VERSION)
               .build();
 
       var iterationSpan =
@@ -380,82 +375,6 @@ final class W1R3 implements Callable<Integer> {
     var buffer = new byte[size];
     random.nextBytes(buffer);
     return buffer;
-  }
-
-  private String discoverRegion() {
-    var region = new StringBuilder();
-    var gcpResource = new GCPResource();
-    gcpResource
-        .getAttributes()
-        .forEach(
-            (attributeKey, value) -> {
-              var key = attributeKey.getKey();
-              if (key.equals("cloud.region")) {
-                region.append((String) value);
-              }
-            });
-    var r = region.toString();
-    if (r.isEmpty()) return "unknown";
-    return r;
-  }
-
-  private OpenTelemetrySdk setupOpenTelemetrySdk(String instance) {
-    var meterResourceBuilder =
-        Attributes.builder()
-            .put("service.namespace", "default")
-            .put("service.name", SERVICE_NAME)
-            .put("service.instance.id", instance);
-    var gcpResource = new GCPResource();
-    gcpResource
-        .getAttributes()
-        .forEach(
-            (attributeKey, value) -> {
-              var key = attributeKey.getKey();
-              if (key.equals("cloud.region")) {
-                meterResourceBuilder.put(key, (String) value);
-              } else if (key.equals("cloud.availability_zone")) {
-                meterResourceBuilder.put(key, (String) value);
-              }
-            });
-
-    var meterResource = Resource.getDefault().merge(Resource.create(meterResourceBuilder.build()));
-
-    var metricConfiguration =
-        MetricConfiguration.builder()
-            .setProjectId(project)
-            .setDeadline(Duration.ofSeconds(30))
-            .setDescriptorStrategy(MetricDescriptorStrategy.NEVER_SEND)
-            .build();
-    var metricExporter = GoogleCloudMetricExporter.createWithConfiguration(metricConfiguration);
-    var meterProvider =
-        SdkMeterProvider.builder()
-            .setResource(meterResource)
-            .registerMetricReader(
-                PeriodicMetricReader.builder(metricExporter)
-                    .setInterval(Duration.ofSeconds(60))
-                    .build())
-            .build();
-
-    var traceConfiguration =
-        TraceConfiguration.builder()
-            .setProjectId(project)
-            .setDeadline(Duration.ofSeconds(30))
-            .build();
-    var traceExporter = TraceExporter.createWithConfiguration(traceConfiguration);
-
-    var traceProvider =
-        SdkTracerProvider.builder()
-            .setResource(Resource.getDefault().merge(Resource.create(gcpResource.getAttributes())))
-            .setSampler(Sampler.traceIdRatioBased(DEFAULT_SAMPLE_RATE))
-            .addSpanProcessor(
-                BatchSpanProcessor.builder(traceExporter).setMeterProvider(meterProvider).build())
-            .build();
-
-    // Register the exporters with OpenTelemetry
-    return OpenTelemetrySdk.builder()
-        .setTracerProvider(traceProvider)
-        .setMeterProvider(meterProvider)
-        .buildAndRegisterGlobal();
   }
 
   // We want millisecond-sized histogram buckets expressed in seconds.
