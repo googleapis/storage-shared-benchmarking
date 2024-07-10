@@ -16,6 +16,8 @@
 
 package otel_support;
 
+import static com.google.common.base.Preconditions.checkState;
+
 import com.google.cloud.opentelemetry.detectors.GCPResource;
 import com.google.cloud.opentelemetry.metric.GoogleCloudMetricExporter;
 import com.google.cloud.opentelemetry.metric.MetricConfiguration;
@@ -89,13 +91,22 @@ public final class Otel implements AutoCloseable {
       String serviceName,
       String project,
       String instance,
-      Attributes baseMeterAttributes,
       Attributes baseTracingAttributes,
       String baseScopeName,
       String baseScopeVersion) {
     OpenTelemetrySdk sdk = setupOpenTelemetrySdk(serviceName, project, instance);
     var tracer = sdk.getTracer(baseScopeName, baseScopeVersion);
     var meter = sdk.getMeter(baseScopeName);
+    AttributesBuilder baseMeterAttributesBuilder = Attributes.builder();
+    baseTracingAttributes.forEach(
+        (key, value) -> {
+          String newKey = key.getKey().replaceAll("[.-]", "_");
+          // AttributeBuilder#put doesn't accept Object. Only String, int, long, double or boolean
+          // today we are only attaching string attributes
+          checkState(value instanceof String, "Unhandled attribute type %s", value.getClass());
+          baseMeterAttributesBuilder.put(newKey, (String) value);
+        });
+    Attributes baseMeterAttributes = baseMeterAttributesBuilder.build();
     String region = discoverRegion();
     return new Otel(sdk, baseMeterAttributes, baseTracingAttributes, tracer, meter, region);
   }
