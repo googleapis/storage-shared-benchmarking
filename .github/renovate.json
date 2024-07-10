@@ -55,6 +55,15 @@
       ],
       "semanticCommitType": "deps",
       "semanticCommitScope": null
+    },
+    {
+      "groupName": "logging dependencies",
+      "packagePatterns": [
+        "^org.slf4j:",
+        "^ch.qos.logback:"
+      ],
+      "semanticCommitType": "deps",
+      "semanticCommitScope": null
     }
   ]
 }
