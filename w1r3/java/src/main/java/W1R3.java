@@ -139,28 +139,9 @@ final class W1R3 implements Callable<Integer> {
             .put("ssb.version.http-client", HTTP_CLIENT_VERSION)
             .build();
 
-    var baseMeterAttributes =
-        Attributes.builder()
-            .put("ssb_language", "java")
-            .put("ssb_deployment", deployment)
-            .put("ssb_instance", instance)
-            .put("ssb_region", region)
-            .put("ssb_version", "unknown")
-            .put("ssb_version_sdk", SDK_VERSION)
-            .put("ssb_version_grpc", GRPC_VERSION)
-            .put("ssb_version_protobuf", PROTOBUF_VERSION)
-            .put("ssb_version_http_client", HTTP_CLIENT_VERSION)
-            .build();
-
     try (var otel =
         Otel.create(
-            SERVICE_NAME,
-            project,
-            instance,
-            baseMeterAttributes,
-            baseTracingAttributes,
-            SCOPE_NAME,
-            SCOPE_VERSION)) {
+            SERVICE_NAME, project, instance, baseTracingAttributes, SCOPE_NAME, SCOPE_VERSION)) {
       var clients = makeClients(transports);
       var uploaders = makeUploaders();
 
