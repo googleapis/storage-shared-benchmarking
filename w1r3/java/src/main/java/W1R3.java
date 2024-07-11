@@ -33,6 +33,9 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.bridge.SLF4JBridgeHandler;
 import otel_support.Otel;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -45,6 +48,12 @@ import runtime.Instrumentation;
     version = "",
     description = "Runs the w1r3 benchmark.")
 final class W1R3 implements Callable<Integer> {
+  static {
+    SLF4JBridgeHandler.removeHandlersForRootLogger();
+    SLF4JBridgeHandler.install();
+  }
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(W1R3.class);
   private static final String SERVICE_NAME = "w1r3";
   private static final String SCOPE_NAME = "w1r3";
   private static final String SCOPE_VERSION = "0.0.1";
@@ -91,7 +100,9 @@ final class W1R3 implements Callable<Integer> {
   private Integer[] objectSizes;
 
   public static void main(String... args) {
+    LOGGER.trace("main(args : {})", Arrays.toString(args));
     var exitCode = new CommandLine(new W1R3()).execute(args);
+    LOGGER.info("exitCode = {}", exitCode);
     System.exit(exitCode);
   }
 
@@ -168,6 +179,13 @@ final class W1R3 implements Callable<Integer> {
 
   private void worker(
       Transport[] transports, Uploader[] uploaders, byte[] randomData, Random random, Otel otel) {
+    LOGGER.trace(
+        "worker(transports : {}, uploaders : {}, randomData.length : {}, random : {}, otel : {})",
+        transports,
+        uploaders,
+        randomData.length,
+        random,
+        otel);
     var tracer = otel.getBaseTracer();
     var meter = otel.getBaseMeter();
     var latencyHistogram =
