@@ -20,6 +20,7 @@ import com.google.cloud.Tuple;
 import com.google.common.collect.Streams;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 public final class GcEvent {
 
@@ -55,7 +56,10 @@ public final class GcEvent {
     return post;
   }
 
-  public GcEventDiff sub(GcEvent other) {
+  public GcEventDiff sub(@Nullable GcEvent other) {
+    if (other == null) {
+      return GcEventDiff.of(timestampNs, count, post);
+    }
     //noinspection UnstableApiUsage
     return GcEventDiff.of(
         this.timestampNs - other.timestampNs,
