@@ -20,12 +20,14 @@ import com.google.cloud.Tuple;
 import com.google.common.collect.Streams;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.DoubleHistogram;
+import io.opentelemetry.api.metrics.LongUpDownCounter;
 import java.io.IOException;
 import java.lang.management.MemoryType;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import otel_support.Otel;
 import runtime.GcEvent.GcEventDiff;
 
@@ -36,14 +38,22 @@ public final class Instrumentation {
   private final DoubleHistogram latencyHistogram;
   private final DoubleHistogram cpuPerByteHistogram;
   private final DoubleHistogram allocatedBytesPerByteHistogram;
+  private final LongUpDownCounter rssUpDownCounter;
+  private final Attributes baseMeterAttributes;
+
+  @Nullable private SetSize lastSetSize;
 
   private Instrumentation(
       DoubleHistogram latencyHistogram,
       DoubleHistogram cpuPerByteHistogram,
-      DoubleHistogram allocatedBytesPerByteHistogram) {
+      DoubleHistogram allocatedBytesPerByteHistogram,
+      LongUpDownCounter rssUpDownCounter,
+      Attributes baseMeterAttributes) {
     this.latencyHistogram = latencyHistogram;
     this.cpuPerByteHistogram = cpuPerByteHistogram;
     this.allocatedBytesPerByteHistogram = allocatedBytesPerByteHistogram;
+    this.rssUpDownCounter = rssUpDownCounter;
+    this.baseMeterAttributes = baseMeterAttributes;
   }
 
   public Measurement measure(long objectSize, Attributes attributes)
@@ -73,8 +83,15 @@ public final class Instrumentation {
             .setUnit("1{memory}")
             .build();
 
+    var rssUpDownCounter =
+        otel.getBaseMeter().upDownCounterBuilder("ssb/w1r3/ps/mem/rss").setUnit("By").build();
+
     return new Instrumentation(
-        latencyHistogram, cpuPerByteHistogram, allocatedBytesPerByteHistogram);
+        latencyHistogram,
+        cpuPerByteHistogram,
+        allocatedBytesPerByteHistogram,
+        rssUpDownCounter,
+        otel.getBaseMeterAttributes());
   }
 
   /**
@@ -201,6 +218,15 @@ public final class Instrumentation {
       latencyHistogram.record(latencyS, attributes);
       cpuPerByteHistogram.record(cpuPerByte, attributes);
       allocatedBytesPerByteHistogram.record(allocatedBytesPerByte, attributes);
+
+      long rss;
+      if (lastSetSize == null) {
+        rss = endRss.getRss();
+      } else {
+        rss = endRss.getRss() - lastSetSize.getRss();
+      }
+      rssUpDownCounter.add(rss, baseMeterAttributes);
+      lastSetSize = endRss;
     }
   }
 }
