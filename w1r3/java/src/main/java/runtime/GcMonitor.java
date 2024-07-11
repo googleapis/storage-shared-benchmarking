@@ -97,7 +97,7 @@ public final class GcMonitor implements NotificationListener {
     final long begin = System.nanoTime();
     Runtime.getRuntime().gc();
     GcEvent gcEvent;
-    while ((gcEvent = last.get()).getTimestampNs() < begin) {
+    while ((gcEvent = last.get()) != null && gcEvent.getTimestampNs() < begin) {
       long split = System.nanoTime();
       if (split - begin > SLEEP_MAX_TIMEOUT) {
         // if we can't get a new value within 5 second, break out and return what we have
