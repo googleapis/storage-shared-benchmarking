@@ -33,6 +33,12 @@ locals {
       display_name = "Memory Usage"
       unit         = "1{memory}"
     }
+    rss = {
+      metric-prefix = "ssb/w1r3/ps/mem"
+      description   = "Resident Set Size (RSS) of the process as measured by the benchmark"
+      display_name  = "Process Resident Set Size (RSS)"
+      unit          = "By"
+    }
   }
 }
 
