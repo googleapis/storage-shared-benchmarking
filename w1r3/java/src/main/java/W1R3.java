@@ -102,7 +102,7 @@ final class W1R3 implements Callable<Integer> {
   private Integer[] objectSizes;
 
   public static void main(String... args) {
-    LOGGER.info("main(args : {})", Arrays.toString(args));
+    LOGGER.trace("main(args : {})", Arrays.toString(args));
     ParseResult parseResult =
         new CommandLine(new W1R3())
             .setStopAtUnmatched(false)
