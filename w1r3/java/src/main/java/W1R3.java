@@ -33,6 +33,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
@@ -40,6 +41,7 @@ import otel_support.Otel;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import picocli.CommandLine.ParseResult;
 import runtime.Instrumentation;
 
 @Command(
@@ -101,7 +103,22 @@ final class W1R3 implements Callable<Integer> {
 
   public static void main(String... args) {
     LOGGER.trace("main(args : {})", Arrays.toString(args));
-    var exitCode = new CommandLine(new W1R3()).execute(args);
+    ParseResult parseResult =
+        new CommandLine(new W1R3())
+            .setStopAtUnmatched(false)
+            .setUnmatchedArgumentsAllowed(true)
+            .parseArgs(args);
+    List<String> unmatchedArguments = parseResult.unmatched();
+    if (!unmatchedArguments.isEmpty()) {
+      LOGGER.warn(
+          "Received unmatched arguments: {}",
+          unmatchedArguments.stream().collect(Collectors.joining(", ", "[", "]")));
+    }
+    var exitCode =
+        new CommandLine(new W1R3())
+            .setStopAtUnmatched(false)
+            .setUnmatchedArgumentsAllowed(true)
+            .execute(args);
     LOGGER.info("exitCode = {}", exitCode);
     System.exit(exitCode);
   }
