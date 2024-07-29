@@ -24,10 +24,8 @@ import io.opentelemetry.api.common.Attributes;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Properties;
 import java.util.Random;
 import java.util.UUID;
@@ -198,38 +196,9 @@ final class W1R3 implements Callable<Integer> {
 
   private void worker(
       Transport[] transports, Uploader[] uploaders, byte[] randomData, Random random, Otel otel) {
-    LOGGER.trace(
-        "worker(transports : {}, uploaders : {}, randomData.length : {}, random : {}, otel : {})",
-        transports,
-        uploaders,
-        randomData.length,
-        random,
-        otel);
     var tracer = otel.getBaseTracer();
-    var meter = otel.getBaseMeter();
-    var latencyHistogram =
-        meter
-            .histogramBuilder("ssb/w1r3/latency")
-            .setExplicitBucketBoundariesAdvice(makeLatencyBoundaries())
-            .setUnit("s")
-            .build();
 
-    var cpuPerByteHistogram =
-        meter
-            .histogramBuilder("ssb/w1r3/cpu")
-            .setExplicitBucketBoundariesAdvice(makeCpuBoundaries())
-            .setUnit("ns/By{CPU}")
-            .build();
-
-    var allocatedBytesPerByteHistogram =
-        meter
-            .histogramBuilder("ssb/w1r3/memory")
-            .setExplicitBucketBoundariesAdvice(makeMemoryHistogramBoundaries())
-            .setUnit("1{memory}")
-            .build();
-
-    Instrumentation instrumentation =
-        new Instrumentation(latencyHistogram, cpuPerByteHistogram, allocatedBytesPerByteHistogram);
+    Instrumentation instrumentation = Instrumentation.create(otel);
     // pre-allocate the buffer we will use for reads
     var readBuffer = ByteBuffer.allocate(2 * MiB);
     for (long i = 0; i != this.iterations; ++i) {
@@ -278,6 +247,7 @@ final class W1R3 implements Callable<Integer> {
           blobId = uploader.upload(client, blobInfo, ByteBuffer.wrap(randomData, 0, objectSize));
           measurement.report();
         } catch (Exception e) {
+          LOGGER.warn("Error while uploading", e);
           uploadSpan.recordException(e);
           continue;
         } finally {
@@ -310,6 +280,7 @@ final class W1R3 implements Callable<Integer> {
             reader.close();
             measurement.report();
           } catch (Exception e) {
+            LOGGER.warn("error while downloading {}", opName, e);
             downloadSpan.recordException(e);
           } finally {
             downloadSpan.end();
@@ -393,64 +364,6 @@ final class W1R3 implements Callable<Integer> {
     var buffer = new byte[size];
     random.nextBytes(buffer);
     return buffer;
-  }
-
-  // We want millisecond-sized histogram buckets expressed in seconds.
-  // Floating point arithmetic is famously tricky, and time arithmetic is also
-  // error prone. Avoid most of these problems by using `Duration` to do all
-  // the arithmetic, and only
-  // convert to `double` (and seconds) when needed.
-  private static List<Double> makeLatencyBoundaries() {
-    var boundaries = new ArrayList<Double>();
-    var boundary = Duration.ofSeconds(0);
-    var increment = Duration.ofMillis(2);
-    for (int i = 0; i != 50; ++i) {
-      boundaries.add(boundary.toMillis() / 1000.0);
-      boundary = boundary.plus(increment);
-    }
-    boundary = Duration.ofMillis(100);
-    increment = Duration.ofMillis(10);
-    for (int i = 0; i != 150; ++i) {
-      if (boundary.compareTo(Duration.ofSeconds(300)) >= 0) break;
-      boundaries.add(boundary.toMillis() / 1000.0);
-      if (i != 0 && i % 10 == 0) increment = increment.multipliedBy(2);
-      boundary = boundary.plus(increment);
-    }
-    return boundaries;
-  }
-
-  private static List<Double> makeCpuBoundaries() {
-    int numBuckets = 200;
-    ArrayList<Double> boundaries = new ArrayList<>(numBuckets);
-    double boundary = 0.0;
-    double increment = 1.0 / 8.0;
-    for (int i = 0; i < numBuckets; i++) {
-      boundaries.add(boundary);
-      if (i != 0 && i % 32 == 0) {
-        increment *= 2;
-      }
-      boundary += increment;
-    }
-    return boundaries;
-  }
-
-  /**
-   * Cloud Monitoring only supports up to 200 buckets per histogram. Use exponentially growing
-   * bucket sizes
-   */
-  private static List<Double> makeMemoryHistogramBoundaries() {
-    int numBuckets = 200;
-    ArrayList<Double> boundaries = new ArrayList<>(numBuckets);
-    double boundary = 0.0;
-    double increment = 1.0 / 16.0;
-    for (int i = 0; i < numBuckets; i++) {
-      boundaries.add(boundary);
-      if (i != 0 && i % 16 == 0) {
-        increment *= 2;
-      }
-      boundary += increment;
-    }
-    return boundaries;
   }
 
   private static String getPackageVersion(String groupId, String artifactId) {
