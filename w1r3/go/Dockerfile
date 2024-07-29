@@ -15,14 +15,14 @@
 FROM golang:1.22 AS build
 
 WORKDIR /var/tmp/build/w1r3
-COPY go.mod go.sum /var/tmp/build/w1r3/
-RUN go mod download
-COPY main.go /var/tmp/build/w1r3/
-RUN go build
+COPY w1r3/ /var/tmp/build/w1r3/w1r3
+RUN go -C w1r3/go mod download
+COPY .git/ /var/tmp/build/w1r3/.git
+RUN go -C w1r3/go build
 
 FROM golang:1.22 AS deploy
 
 RUN apt update && \
     apt install -y ca-certificates
 
-COPY --from=build /var/tmp/build/w1r3/w1r3 /r/w1r3
+COPY --from=build /var/tmp/build/w1r3/w1r3/go/w1r3 /r/w1r3

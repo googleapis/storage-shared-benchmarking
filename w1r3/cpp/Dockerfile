@@ -63,8 +63,9 @@ RUN apk update && \
 RUN ldconfig /usr/local/lib*
 
 WORKDIR /var/tmp/build/w1r3
-COPY CMakeLists.txt w1r3.cc /var/tmp/build/w1r3/
-RUN cmake -G Ninja -S . -B .build -DCMAKE_BUILD_TYPE=Release && \
+COPY .git/ /var/tmp/build/w1r3/.git
+COPY w1r3/ /var/tmp/build/w1r3/w1r3
+RUN cmake -G Ninja -S w1r3/cpp -B .build -DCMAKE_BUILD_TYPE=Release && \
     cmake --build .build
 
 # RUN ldd .build/w1r3 && false
@@ -76,5 +77,3 @@ RUN apk update && \
             boost1.84-program_options libcurl crc32c
 
 COPY --from=build /var/tmp/build/w1r3/.build/w1r3 /r/w1r3
-
-RUN ldd /r/w1r3
