@@ -21,10 +21,10 @@ COPY w1r3/java/pom.xml /var/tmp/build/w1r3/java/pom.xml
 # dependencies each time.
 RUN env -C w1r3/java mvn dependency:resolve-plugins
 RUN env -C w1r3/java mvn dependency:resolve
-RUN env -C w1r3/java mvn install
+RUN env -C w1r3/java mvn verify
 COPY .git/ /var/tmp/build/.git
 COPY w1r3/ /var/tmp/build/w1r3
-RUN env -C w1r3/java mvn package
+RUN env -C w1r3/java mvn -DGIT_SHA=$(git rev-parse --verify HEAD) package
 
 FROM eclipse-temurin:21.0.4_7-jdk-jammy
 
