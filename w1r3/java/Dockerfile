@@ -15,16 +15,17 @@
 FROM maven:3.9.8-eclipse-temurin-11 AS build
 
 WORKDIR /var/tmp/build
-COPY pom.xml /var/tmp/build/
+COPY w1r3/java/pom.xml /var/tmp/build/w1r3/java/pom.xml
 # Manually install the dependencies to speed up the builds on Cloud Build.
 # Kaniko caches this layer and the build does not need to download the
 # dependencies each time.
-RUN mvn dependency:resolve-plugins
-RUN mvn dependency:resolve
-RUN mvn install
-COPY src/main /var/tmp/build/src/main
-RUN mvn package
+RUN env -C w1r3/java mvn dependency:resolve-plugins
+RUN env -C w1r3/java mvn dependency:resolve
+RUN env -C w1r3/java mvn install
+COPY .git/ /var/tmp/build/.git
+COPY w1r3/ /var/tmp/build/w1r3
+RUN env -C w1r3/java mvn package
 
 FROM eclipse-temurin:21.0.4_7-jdk-jammy
 
-COPY --from=build  /var/tmp/build/target/w1r3-0.0.1-SNAPSHOT.jar /r/w1r3.jar
+COPY --from=build  /var/tmp/build/w1r3/java/target/w1r3-0.0.1-SNAPSHOT.jar /r/w1r3.jar

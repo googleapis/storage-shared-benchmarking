@@ -29,5 +29,6 @@ steps:
     '--image-fs-extract-retry=3',
     '--image-download-retry=3',
     '--push-retry=3',
-    '--context=${_WORKDIR}'
+    '--context=.',
+    '--dockerfile=${_WORKDIR}/Dockerfile'
   ]
