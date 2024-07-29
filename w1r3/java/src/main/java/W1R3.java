@@ -133,6 +133,7 @@ final class W1R3 implements Callable<Integer> {
     }
     var instance = UUID.randomUUID().toString();
     var region = Otel.discoverRegion();
+    var ssbVersion = getPropertyFromResource("/ssb.properties", "ssb.version");
 
     System.out.printf("## Starting continuous GCS Java SDK benchmark%n");
     System.out.printf("# object-sizes: %s%n", Arrays.toString(this.objectSizes));
@@ -141,6 +142,7 @@ final class W1R3 implements Callable<Integer> {
     System.out.printf("# bucket: %s%n", this.bucket);
     System.out.printf("# deployment: %s%n", this.deployment);
     System.out.printf("# instance: %s%n", instance);
+    System.out.printf("# SSB Version %s%n", ssbVersion);
     System.out.printf("# Java SDK Version %s%n", SDK_VERSION);
     System.out.printf("# HTTP Version %s%n", HTTP_CLIENT_VERSION);
     System.out.printf("# Protobuf Version %s%n", PROTOBUF_VERSION);
@@ -160,7 +162,7 @@ final class W1R3 implements Callable<Integer> {
             .put("ssb.deployment", deployment)
             .put("ssb.instance", instance)
             .put("ssb.region", region)
-            .put("ssb.version", "unknown")
+            .put("ssb.version", ssbVersion)
             .put("ssb.version.sdk", SDK_VERSION)
             .put("ssb.version.grpc", GRPC_VERSION)
             .put("ssb.version.protobuf", PROTOBUF_VERSION)
@@ -453,15 +455,19 @@ final class W1R3 implements Callable<Integer> {
 
   private static String getPackageVersion(String groupId, String artifactId) {
     var path = String.format("/META-INF/maven/%s/%s/pom.properties", groupId, artifactId);
+    return getPropertyFromResource(path, "version");
+  }
+
+  private static String getPropertyFromResource(String path, String propertyName) {
     try {
       var props = new Properties();
       var stream = W1R3.class.getResourceAsStream(path);
       if (stream != null) {
         props.load(stream);
         stream.close();
-        return props.getProperty("version");
+        return props.getProperty(propertyName);
       }
-    } catch (IOException e) {
+    } catch (IOException ignore) {
     }
     return "unknown";
   }
