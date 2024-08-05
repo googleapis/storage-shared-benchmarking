@@ -82,6 +82,10 @@ public final class Otel implements AutoCloseable {
     return Attributes.builder().putAll(baseTracingAttributes);
   }
 
+  public Attributes getBaseMeterAttributes() {
+    return baseMeterAttributes;
+  }
+
   @Override
   public void close() {
     openTelemetrySdk.close();

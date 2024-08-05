@@ -21,17 +21,26 @@ locals {
     latency = {
       description  = "Operation latency as measured by the benchmark."
       display_name = "Operation Latency"
+      type_name    = "latency"
       unit         = "s"
     }
     cpu = {
       description  = "CPU usage per byte as measured by the benchmark."
       display_name = "CPU Usage"
+      type_name    = "cpu"
       unit         = "ns/By{CPU}"
     }
     memory = {
       description  = "Memory usage per byte as measured by the benchmark."
       display_name = "Memory Usage"
+      type_name    = "memory"
       unit         = "1{memory}"
+    }
+    rss = {
+      description  = "Resident Set Size (RSS) of the process as measured by the benchmark"
+      display_name = "Process Resident Set Size (RSS)"
+      type_name    = "ps/mem/rss"
+      unit         = "By"
     }
   }
 }
@@ -41,7 +50,7 @@ resource "google_monitoring_metric_descriptor" "default" {
   description  = each.value.description
   display_name = each.value.display_name
   unit         = each.value.unit
-  type         = "workload.googleapis.com/${var.metric-prefix}/${each.key}"
+  type         = "workload.googleapis.com/${var.metric-prefix}/${each.value.type_name}"
   metric_kind  = "CUMULATIVE"
   value_type   = "DISTRIBUTION"
 
