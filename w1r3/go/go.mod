@@ -8,12 +8,12 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.48.1
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.24.1
 	github.com/google/uuid v1.6.0
-	go.opentelemetry.io/contrib/detectors/gcp v1.28.0
-	go.opentelemetry.io/otel v1.28.0
-	go.opentelemetry.io/otel/metric v1.28.0
-	go.opentelemetry.io/otel/sdk v1.28.0
+	go.opentelemetry.io/contrib/detectors/gcp v1.30.0
+	go.opentelemetry.io/otel v1.30.0
+	go.opentelemetry.io/otel/metric v1.30.0
+	go.opentelemetry.io/otel/sdk v1.30.0
 	go.opentelemetry.io/otel/sdk/metric v1.28.0
-	go.opentelemetry.io/otel/trace v1.28.0
+	go.opentelemetry.io/otel/trace v1.30.0
 	google.golang.org/api v0.189.0
 	google.golang.org/grpc v1.65.0
 )
@@ -27,7 +27,7 @@ require (
 	cloud.google.com/go/iam v1.1.10 // indirect
 	cloud.google.com/go/monitoring v1.20.2 // indirect
 	cloud.google.com/go/trace v1.10.10 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.24.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.24.1 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.48.1 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -50,7 +50,7 @@ require (
 	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/oauth2 v0.21.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.22.0 // indirect
+	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/genproto v0.0.0-20240722135656-d784300faade // indirect
