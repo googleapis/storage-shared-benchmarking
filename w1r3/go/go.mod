@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	cloud.google.com/go/profiler v0.4.1
-	cloud.google.com/go/storage v1.43.0
+	cloud.google.com/go/storage v1.44.0
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.48.1
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.24.1
 	github.com/google/uuid v1.6.0
