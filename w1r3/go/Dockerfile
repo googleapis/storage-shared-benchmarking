@@ -20,7 +20,7 @@ RUN go -C w1r3/go mod download
 COPY .git/ /var/tmp/build/w1r3/.git
 RUN go -C w1r3/go build
 
-FROM golang:1.22 AS deploy
+FROM alpine:3.20 AS deploy
 
 RUN apt update && \
     apt install -y ca-certificates
