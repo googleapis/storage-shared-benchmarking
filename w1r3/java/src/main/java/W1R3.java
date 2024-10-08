@@ -307,7 +307,9 @@ final class W1R3 implements Callable<Integer> {
       if (t.equals("JSON")) {
         transports.add(new Transport(t, StorageOptions.getDefaultInstance().getService()));
       } else if (t.equals("GRPC+CFE")) {
-        transports.add(new Transport(t, StorageOptions.grpc().setAttemptDirectPath(false).build().getService()));
+        transports.add(
+            new Transport(
+                t, StorageOptions.grpc().setAttemptDirectPath(false).build().getService()));
       } else if (t.equals("GRPC+DP")) {
         transports.add(
             new Transport(
