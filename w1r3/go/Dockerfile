@@ -20,9 +20,11 @@ RUN go -C w1r3/go mod download
 COPY .git/ /var/tmp/build/w1r3/.git
 RUN go -C w1r3/go build
 
-FROM alpine:3.20 AS deploy
+FROM ubuntu:jammy AS deploy
 
-RUN apt update && \
-    apt install -y ca-certificates
+RUN apt-get update && \ 
+    apt-get install -y ca-certificates && \
+    apt-get clean && \
+    apt-get autoclean
 
 COPY --from=build /var/tmp/build/w1r3/w1r3/go/w1r3 /r/w1r3
