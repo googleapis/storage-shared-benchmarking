@@ -9,7 +9,7 @@
         "default-features": false,
         "features": [
           "storage",
-          "experimental-storage-grpc",
+          "storage-grpc",
           "monitoring",
           "opentelemetry"
         ]

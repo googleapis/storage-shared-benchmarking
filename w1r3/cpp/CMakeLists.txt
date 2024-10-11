@@ -53,7 +53,7 @@ target_compile_definitions(
                  SSB_W1R3_VERSION="${W1R3_VERSION}")
 target_link_libraries(
     w1r3
-    PRIVATE google-cloud-cpp::experimental-storage_grpc
+    PRIVATE google-cloud-cpp::storage_grpc
             google-cloud-cpp::storage
             google-cloud-cpp::monitoring
             google-cloud-cpp::opentelemetry
