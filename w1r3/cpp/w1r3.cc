@@ -460,10 +460,12 @@ std::map<std::string, google::cloud::storage::Client> make_clients(
   // Use lambdas to create the clients only if needed.
   auto make_json = [&options]() { return gc::storage::Client(options); };
   auto make_grpc = [&options]() {
-    return gc::storage_experimental::DefaultGrpcClient(options);
+    return gc::storage::MakeGrpcClient(
+        gc::Options(options).set<gc::EndpointOption>(
+            "storage.googleapis.com"));
   };
   auto make_dp = [&options]() {
-    return gc::storage_experimental::DefaultGrpcClient(
+    return gc::storage::MakeGrpcClient(
         gc::Options(options).set<gc::EndpointOption>(
             "google-c2p:///storage.googleapis.com"));
   };
@@ -644,7 +646,7 @@ std::unique_ptr<opentelemetry::metrics::MeterProvider> make_meter_provider(
   // We want to configure the latency histogram buckets. Seemingly, this is
   // done rather indirectly in OpenTelemetry. One defines a "selector" that
   // matches the target histogram, and stores the configuration there.
-  auto exporter = gc::otel_internal::MakeMonitoringExporter(
+  auto exporter = gc::otel::MakeMonitoringExporter(
       project, gc::monitoring_v3::MakeMetricServiceConnection());
 
   auto reader_options =
