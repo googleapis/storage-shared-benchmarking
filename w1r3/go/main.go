@@ -577,24 +577,24 @@ func makeTransports(ctx context.Context, flags []string) ([]Transport, error) {
 			}
 			transports = append(transports, Transport{transport, client})
 		} else if transport == GRPC_CFE {
+			const disableDP = "GOOGLE_CLOUD_DISABLE_DIRECT_PATH"
+			if err := os.Setenv(disableDP, "true"); err != nil {
+				return nil, err
+			}
 			client, err := storage.NewGRPCClient(ctx)
 			if err != nil {
 				return nil, err
 			}
 			transports = append(transports, Transport{transport, client})
+			if err := os.Unsetenv(disableDP); err != nil {
+				return nil, err
+			}
 		} else if transport == GRPC_DP {
-			const xdsEnvVar = "GOOGLE_CLOUD_ENABLE_DIRECT_PATH_XDS"
-			if err := os.Setenv(xdsEnvVar, "true"); err != nil {
-				return nil, err
-			}
 			client, err := storage.NewGRPCClient(ctx)
 			if err != nil {
 				return nil, err
 			}
 			transports = append(transports, Transport{transport, client})
-			if err := os.Unsetenv(xdsEnvVar); err != nil {
-				return nil, err
-			}
 		} else {
 			return nil, fmt.Errorf("unknown transport %v", transport)
 		}
