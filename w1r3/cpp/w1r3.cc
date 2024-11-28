@@ -20,6 +20,9 @@
 #include <google/cloud/opentelemetry_options.h>
 #include <google/cloud/project.h>
 #include <google/cloud/storage/client.h>
+#include <google/cloud/storage/async/client.h>
+#include <google/cloud/storage/async/bucket_name.h>
+#include "google/cloud/storage/async/read_all.h"
 #include <google/cloud/storage/grpc_plugin.h>
 #include <google/cloud/storage/options.h>
 #include <google/cloud/version.h>
@@ -73,6 +76,9 @@ auto constexpr kTransportJson = "JSON"sv;
 auto constexpr kTransportGrpc = "GRPC+CFE"sv;
 auto constexpr kTransportDirectPath = "GRPC+DP"sv;
 
+auto constexpr kClientTypeSync = "SYNC"sv;
+auto constexpr kClientTypeAsync = "ASYNC"sv;
+
 auto constexpr kKB = 1'000;
 auto constexpr kMB = kKB * kKB;
 auto constexpr kKiB = 1024;
@@ -125,7 +131,20 @@ auto get_transports(boost::program_options::variables_map const& vm) {
   return vm["transports"].as<std::vector<std::string>>();
 }
 
+auto get_client_types(boost::program_options::variables_map const& vm) {
+  auto const l = vm.find("client-types");
+  if (l == vm.end()) {
+    return std::vector<std::string> {
+        std::string(kClientTypeSync),
+        std::string(kClientTypeAsync),
+    };
+  }
+  return vm["client-types"].as<std::vector<std::string>>();
+}
+
 std::map<std::string, google::cloud::storage::Client> make_clients(
+    boost::program_options::variables_map const& vm);
+std::map<std::string, google::cloud::storage_experimental::AsyncClient> make_async_clients(
     boost::program_options::variables_map const& vm);
 
 using uploader_function = std::function<gc::Status(
@@ -133,7 +152,14 @@ using uploader_function = std::function<gc::Status(
     std::string const& object_name, std::int64_t object_size,
     std::span<char> buffer)>;
 
+using async_uploader_function = std::function<gc::Status(
+    gc::storage_experimental::AsyncClient& async_client, std::string const& bucket_name,
+    std::string const& object_name, std::int64_t object_size,
+    std::span<char> buffer)>;
+
 std::map<std::string, uploader_function> make_uploaders(
+    boost::program_options::variables_map const&);
+std::map<std::string, async_uploader_function> make_async_uploaders(
     boost::program_options::variables_map const&);
 
 std::string discover_region();
@@ -164,8 +190,11 @@ using histogram_ptr =
 
 struct config {
   std::map<std::string, google::cloud::storage::Client> clients;
+  std::map<std::string, google::cloud::storage_experimental::AsyncClient> async_clients;
   std::map<std::string, uploader_function> uploaders;
+  std::map<std::string, async_uploader_function> async_uploaders;
   std::vector<std::int64_t> object_sizes;
+  std::vector<std::string> client_types;
   std::string bucket_name;
   std::string deployment;
   std::string instance;
@@ -190,6 +219,7 @@ int main(int argc, char* argv[]) try {
   auto const bucket_name = vm["bucket"].as<std::string>();
   auto const object_sizes = get_object_sizes(vm);
   auto const transports = get_transports(vm);
+  auto const client_types = get_client_types(vm);
   auto const deployment = vm["deployment"].as<std::string>();
 
   auto join = [](auto collection) {
@@ -209,6 +239,7 @@ int main(int argc, char* argv[]) try {
   namespace gci = ::google::cloud::internal;
   std::cout << "## Starting continuous GCS C++ SDK benchmark"              //
             << "\n# object-sizes: " << join(object_sizes)                  //
+            << "\n# client-types: " << join(client_types)                  //
             << "\n# transports: " << join(transports)                      //
             << "\n# project-id: " << project                               //
             << "\n# bucket: " << bucket_name                               //
@@ -250,8 +281,11 @@ int main(int argc, char* argv[]) try {
 
   auto cfg = config{
       .clients = make_clients(vm),
+      .async_clients = make_async_clients(vm),
       .uploaders = make_uploaders(vm),
+      .async_uploaders = make_async_uploaders(vm),
       .object_sizes = std::move(object_sizes),
+      .client_types = std::move(client_types),
       .bucket_name = std::move(bucket_name),
       .deployment = deployment,
       .instance = instance,
@@ -299,6 +333,17 @@ auto read_object(gc::storage::Client& client, std::string const& bucket_name,
     if (!is.good()) break;
   }
   return is.status();
+}
+
+auto read_object_async(gc::storage_experimental::AsyncClient& async_client, std::string const& bucket_name,
+                       std::string const& object_name) {
+  auto read = async_client.ReadObject(gc::storage_experimental::BucketName(bucket_name), object_name).get();
+  if (!read.ok()) return read.status();
+  gc::storage_experimental::AsyncToken token;
+  gc::storage_experimental::AsyncReader reader;
+  std::tie(reader, token) = *std::move(read);
+  auto payload = gc::storage_experimental::ReadAll(std::move(reader), std::move(token)).get();
+  return payload.status();
 }
 
 // We instrument `operator new` to track the number of allocated bytes. This
@@ -369,8 +414,11 @@ void worker(std::shared_ptr<std::vector<char>> data, config cfg) {
   for (int i = 0; i != cfg.iterations; ++i) {
     auto const object_name = make_object_name(generator);
     auto const object_size = pick_one(generator, cfg.object_sizes);
+    auto client_type = pick_one(generator, cfg.client_types);
     auto client = pick_one(generator, cfg.clients);
+    auto async_client = pick_one(generator, cfg.async_clients);
     auto const uploader = pick_one(generator, cfg.uploaders);
+    auto const async_uploader = pick_one(generator, cfg.async_uploaders);
 
     auto common_attributes = [&] {
       return std::vector<std::pair<opentelemetry::nostd::string_view,
@@ -378,6 +426,7 @@ void worker(std::shared_ptr<std::vector<char>> data, config cfg) {
           {"ssb.language", "cpp"},
           {"ssb.object-size", object_size},
           {"ssb.transport", client.first},
+          {"ssb.client-type", client_type},
           {"ssb.deployment", cfg.deployment},
           {"ssb.instance", cfg.instance},
           {"ssb.region", cfg.region},
@@ -414,8 +463,14 @@ void worker(std::shared_ptr<std::vector<char>> data, config cfg) {
           tracer->StartSpan("ssb::upload", as_attributes(upload_attributes));
       auto upload = tracer->WithActiveSpan(upload_span);
       auto const t = usage();
-      auto status = uploader.second(client.second, cfg.bucket_name, object_name,
-                                    object_size, *data);
+      auto status = gc::Status{};
+      if (client_type == kClientTypeSync) {
+        status = uploader.second(client.second, cfg.bucket_name, object_name,
+                                      object_size, *data);
+      } else {
+        status = async_uploader.second(async_client.second, cfg.bucket_name, object_name,
+                                            object_size, *data);
+      }
       if (!status.ok()) {
         upload_span->SetStatus(opentelemetry::trace::StatusCode::kError,
                                status.message());
@@ -431,7 +486,13 @@ void worker(std::shared_ptr<std::vector<char>> data, config cfg) {
           "ssb::download", as_attributes(download_attributes));
       auto download = tracer->WithActiveSpan(download_span);
       auto const t = usage();
-      auto status = read_object(client.second, cfg.bucket_name, object_name);
+      auto status = gc::Status{};
+      if (client_type == kClientTypeSync) {
+        status = read_object(client.second, cfg.bucket_name, object_name);
+      } else {
+        status = read_object_async(async_client.second, cfg.bucket_name, object_name);
+      }
+      
       if (!status.ok()) {
         download_span->SetStatus(opentelemetry::trace::StatusCode::kError,
                                  status.message());
@@ -484,6 +545,34 @@ std::map<std::string, google::cloud::storage::Client> make_clients(
   return clients;
 }
 
+std::map<std::string, google::cloud::storage_experimental::AsyncClient> make_async_clients(
+    boost::program_options::variables_map const& vm) {
+  auto const options = gc::Options{}
+                           .set<gc::storage::UploadBufferSizeOption>(256 * kKiB)
+                           .set<gc::OpenTelemetryTracingOption>(true);
+  auto make_grpc = [&options]() {
+    return gc::storage_experimental::AsyncClient(
+        gc::Options(options).set<gc::EndpointOption>(
+            "storage.googleapis.com"));
+  };
+  auto make_dp = [&options]() {
+    return gc::storage_experimental::AsyncClient(
+        gc::Options(options).set<gc::EndpointOption>(
+            "google-c2p:///storage.googleapis.com"));
+  };
+  std::map<std::string, gc::storage_experimental::AsyncClient> async_clients;
+  for (auto const& name : get_transports(vm)) {
+    if (name == kTransportGrpc) {
+      async_clients.emplace(name, make_grpc());
+    } else if (name == kTransportDirectPath) {
+      async_clients.emplace(name, make_dp());
+    } else {
+      throw std::runtime_error("unknown transport name " + name);
+    }
+  }
+  return async_clients;                     
+}
+
 auto insert_object(gc::storage::Client& client, std::string const& bucket_name,
                    std::string const& object_name, std::int64_t object_size,
                    std::span<char> buffer) {
@@ -496,6 +585,18 @@ auto insert_object(gc::storage::Client& client, std::string const& bucket_name,
                     std::string_view{buffer.data(),
                                      static_cast<std::size_t>(object_size)})
       .status();
+}
+
+auto insert_object_async(gc::storage_experimental::AsyncClient& async_client, std::string const& bucket_name,
+                         std::string const& object_name, std::int64_t object_size,
+                         std::span<char> buffer) {
+  if (object_size > buffer.size()) {
+    return gc::Status(gc::StatusCode::kInvalidArgument,
+                      "object size is too large for InsertObject() calls");
+  }
+  auto s = std::string(buffer.begin(), buffer.end());
+  return async_client
+      .InsertObject(gc::storage_experimental::BucketName(bucket_name), object_name, s).get().status();
 }
 
 auto write_object(gc::storage::Client& client, std::string const& bucket_name,
@@ -513,11 +614,35 @@ auto write_object(gc::storage::Client& client, std::string const& bucket_name,
   return os.metadata().status();
 }
 
+auto write_object_async(gc::storage_experimental::AsyncClient& async_client, std::string const& bucket_name,
+                        std::string const& object_name, std::int64_t object_size,
+                        std::span<char> buffer) {
+  auto w = async_client.StartBufferedUpload(gc::storage_experimental::BucketName(bucket_name), object_name).get();
+  if (!w.ok()) return w.status();
+  gc::storage_experimental::AsyncToken token;
+  gc::storage_experimental::AsyncWriter writer;
+  std::tie(writer, token) = *std::move(w);
+  auto s = std::string(buffer.begin(), buffer.end());
+  auto p = writer.Write(std::move(token), gc::storage_experimental::WritePayload(s)).get();
+  if (!p.ok()) return p.status();
+  token = *std::move(p);
+  auto metadata = writer.Finalize(std::move(token)).get();
+  return metadata.status();
+}
+
 std::map<std::string, uploader_function> make_uploaders(
     boost::program_options::variables_map const&) {
   return std::map<std::string, uploader_function>{
       {std::string(kSingleShot), insert_object},
       {std::string(kResumable), write_object},
+  };
+}
+
+std::map<std::string, async_uploader_function> make_async_uploaders(
+    boost::program_options::variables_map const&) {
+  return std::map<std::string, async_uploader_function>{
+    {std::string(kSingleShot), insert_object_async},
+    {std::string(kResumable), write_object_async},
   };
 }
 
@@ -706,6 +831,8 @@ boost::program_options::variables_map parse_args(int argc, char* argv[]) {
        "otel::BasicTracingRateOption value")  //
       ("max-queue-size", po::value<int>()->default_value(2048),
        "set the max queue size for open telemetery")  //
+      ("client-types", po::value<std::vector<std::string>>()->multitoken(),
+       "the types of clients used in the benchmark.")
       ;
 
   po::variables_map vm;
