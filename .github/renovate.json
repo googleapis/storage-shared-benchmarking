@@ -4,6 +4,7 @@
     "schedule:weekdays",
     ":combinePatchMinorReleases"
   ],
+  "prConcurrentLimit": 100,
   "regexManagers": [
     {
       "description": "Automatically update dependencies in Dockerfiles",
@@ -64,6 +65,47 @@
       ],
       "semanticCommitType": "deps",
       "semanticCommitScope": null
+    },
+    {
+      "matchCategories": ["cpp"],
+      "addLabels": ["lang: cpp"]
+    },
+    {
+      "matchCategories": ["golang"],
+      "addLabels": ["lang: go"]
+    },
+    {
+      "matchCategories": ["java"],
+      "addLabels": ["lang: java"]
+    },
+    {
+      "matchCategories": ["js", "node"],
+      "addLabels": ["lang: nodejs"]
+    },
+    {
+      "matchCategories": ["python"],
+      "addLabels": ["lang: python"]
     }
-  ]
+  ],
+  "cpp": {
+    "managerBranchPrefix": "cpp-"
+  },
+  "golang": {
+    "managerBranchPrefix": "go-"
+  },
+  "java": {
+    "managerBranchPrefix": "java-"
+  },
+  "js": {
+    "managerBranchPrefix": "nodejs-"
+  },
+  "node": {
+    "managerBranchPrefix": "nodejs-"
+  },
+  "python": {
+    "managerBranchPrefix": "python-"
+  },
+  "terraform": {
+    "managerBranchPrefix": "terraform-"
+  }
 }
