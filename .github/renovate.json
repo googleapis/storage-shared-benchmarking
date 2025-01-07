@@ -1,12 +1,13 @@
 {
   "extends": [
-    "config:base",
+    "config:recommended",
     "schedule:weekdays",
     ":combinePatchMinorReleases"
   ],
   "prConcurrentLimit": 100,
-  "regexManagers": [
+  "customManagers": [
     {
+      "customType": "regex",
       "description": "Automatically update dependencies in Dockerfiles",
       "fileMatch": [
         ".*Dockerfile$"
@@ -21,88 +22,101 @@
   "packageRules": [
     {
       "groupName": "maven plugins",
-      "packagePatterns": [
-        "^org.apache.maven",
-        "^org.jacoco:",
-        "^org.codehaus.mojo:",
-        "^org.sonatype.plugins:",
-        "^com.coveo:",
-        "^com.google.cloud:google-cloud-shared-config"
-      ],
       "semanticCommitType": "build",
-      "semanticCommitScope": "deps"
+      "semanticCommitScope": "deps",
+      "matchPackageNames": [
+        "/^org.apache.maven/",
+        "/^org.jacoco:/",
+        "/^org.codehaus.mojo:/",
+        "/^org.sonatype.plugins:/",
+        "/^com.coveo:/",
+        "/^com.google.cloud:google-cloud-shared-config/"
+      ]
     },
     {
       "groupName": "storage dependencies",
-      "packagePatterns": [
-        "^com.google.cloud:google-cloud-storage",
-        "^com.google.cloud:google-cloud-storage-bom",
-        "^com.google.api.grpc:proto-google-cloud-storage-v2",
-        "^com.google.api.grpc:grpc-google-cloud-storage-v2",
-        "^com.google.api.grpc:gapic-google-cloud-storage-v2",
-        "^com.google.api.grpc:proto-google-cloud-storage-control-v2",
-        "^com.google.api.grpc:grpc-google-cloud-storage-control-v2",
-        "^com.google.cloud:google-cloud-storage-control",
-        "^com.google.cloud:libraries-bom"
-      ],
       "semanticCommitType": "deps",
-      "semanticCommitScope": null
+      "semanticCommitScope": null,
+      "matchPackageNames": [
+        "/^com.google.cloud:google-cloud-storage/",
+        "/^com.google.cloud:google-cloud-storage-bom/",
+        "/^com.google.api.grpc:proto-google-cloud-storage-v2/",
+        "/^com.google.api.grpc:grpc-google-cloud-storage-v2/",
+        "/^com.google.api.grpc:gapic-google-cloud-storage-v2/",
+        "/^com.google.api.grpc:proto-google-cloud-storage-control-v2/",
+        "/^com.google.api.grpc:grpc-google-cloud-storage-control-v2/",
+        "/^com.google.cloud:google-cloud-storage-control/",
+        "/^com.google.cloud:libraries-bom/"
+      ]
     },
     {
       "groupName": "open telemetry dependencies",
-      "packagePatterns": [
-        "^com.google.cloud.opentelemetry:",
-        "^io.opentelemetry:"
-      ],
       "semanticCommitType": "deps",
-      "semanticCommitScope": null
+      "semanticCommitScope": null,
+      "matchPackageNames": [
+        "/^com.google.cloud.opentelemetry:/",
+        "/^io.opentelemetry:/"
+      ]
     },
     {
       "groupName": "logging dependencies",
-      "packagePatterns": [
-        "^org.slf4j:",
-        "^ch.qos.logback:"
-      ],
       "semanticCommitType": "deps",
-      "semanticCommitScope": null
+      "semanticCommitScope": null,
+      "matchPackageNames": [
+        "/^org.slf4j:/",
+        "/^ch.qos.logback:/"
+      ]
     },
     {
-      "matchCategories": ["cpp"],
-      "addLabels": ["lang: cpp"]
+      "matchCategories": [
+        "cpp"
+      ],
+      "addLabels": [
+        "lang: cpp"
+      ]
     },
     {
-      "matchCategories": ["golang"],
-      "addLabels": ["lang: go"]
+      "matchCategories": [
+        "golang"
+      ],
+      "addLabels": [
+        "lang: go"
+      ],
+      "additionalBranchPrefix": "go-"
     },
     {
-      "matchCategories": ["java"],
-      "addLabels": ["lang: java"]
+      "matchCategories": [
+        "java"
+      ],
+      "addLabels": [
+        "lang: java"
+      ],
+      "additionalBranchPrefix": "java-"
     },
     {
-      "matchCategories": ["js", "node"],
-      "addLabels": ["lang: nodejs"]
+      "matchCategories": [
+        "js",
+        "node"
+      ],
+      "addLabels": [
+        "lang: nodejs"
+      ],
+      "additionalBranchPrefix": "nodejs-"
     },
     {
-      "matchCategories": ["python"],
-      "addLabels": ["lang: python"]
+      "matchCategories": [
+        "python"
+      ],
+      "addLabels": [
+        "lang: python"
+      ],
+      "additionalBranchPrefix": "python-"
+    },
+    {
+      "matchCategories": [
+        "terraform"
+      ],
+      "additionalBranchPrefix": "terraform-"
     }
-  ],
-  "golang": {
-    "managerBranchPrefix": "go-"
-  },
-  "java": {
-    "managerBranchPrefix": "java-"
-  },
-  "js": {
-    "managerBranchPrefix": "nodejs-"
-  },
-  "node": {
-    "managerBranchPrefix": "nodejs-"
-  },
-  "python": {
-    "managerBranchPrefix": "python-"
-  },
-  "terraform": {
-    "managerBranchPrefix": "terraform-"
-  }
+  ]
 }
