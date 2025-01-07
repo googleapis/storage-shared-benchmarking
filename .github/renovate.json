@@ -87,9 +87,6 @@
       "addLabels": ["lang: python"]
     }
   ],
-  "cpp": {
-    "managerBranchPrefix": "cpp-"
-  },
   "golang": {
     "managerBranchPrefix": "go-"
   },
