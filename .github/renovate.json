@@ -21,36 +21,6 @@
   ],
   "packageRules": [
     {
-      "matchCategories": [
-        "python"
-      ],
-      "additionalBranchPrefix": "python-"
-    },
-    {
-      "matchCategories": [
-        "node"
-      ],
-      "additionalBranchPrefix": "nodejs-"
-    },
-    {
-      "matchCategories": [
-        "js"
-      ],
-      "additionalBranchPrefix": "nodejs-"
-    },
-    {
-      "matchCategories": [
-        "java"
-      ],
-      "additionalBranchPrefix": "java-"
-    },
-    {
-      "matchCategories": [
-        "golang"
-      ],
-      "additionalBranchPrefix": "go-"
-    },
-    {
       "groupName": "maven plugins",
       "semanticCommitType": "build",
       "semanticCommitScope": "deps",
@@ -111,7 +81,8 @@
       ],
       "addLabels": [
         "lang: go"
-      ]
+      ],
+      "additionalBranchPrefix": "go-"
     },
     {
       "matchCategories": [
@@ -119,7 +90,8 @@
       ],
       "addLabels": [
         "lang: java"
-      ]
+      ],
+      "additionalBranchPrefix": "java-"
     },
     {
       "matchCategories": [
@@ -128,7 +100,8 @@
       ],
       "addLabels": [
         "lang: nodejs"
-      ]
+      ],
+      "additionalBranchPrefix": "nodejs-"
     },
     {
       "matchCategories": [
@@ -136,10 +109,14 @@
       ],
       "addLabels": [
         "lang: python"
-      ]
+      ],
+      "additionalBranchPrefix": "python-"
+    },
+    {
+      "matchCategories": [
+        "terraform"
+      ],
+      "additionalBranchPrefix": "terraform-"
     }
-  ],
-  "terraform": {
-    "additionalBranchPrefix": "terraform-"
-  }
+  ]
 }
