@@ -20,7 +20,7 @@ RUN go -C w1r3/go mod download
 COPY .git/ /var/tmp/build/w1r3/.git
 RUN go -C w1r3/go build
 
-FROM ubuntu:jammy AS deploy
+FROM ubuntu:noble AS deploy
 
 RUN apt-get update && \ 
     apt-get install -y ca-certificates && \
