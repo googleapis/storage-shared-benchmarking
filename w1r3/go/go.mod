@@ -1,6 +1,6 @@
 module github.com/googleapis/storage-shared-benchmarking/w1r3
 
-go 1.22.7
+go 1.23.0
 
 require (
 	cloud.google.com/go/profiler v0.4.1
@@ -48,7 +48,7 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.58.0 // indirect
 	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/net v0.33.0 // indirect
-	golang.org/x/oauth2 v0.24.0 // indirect
+	golang.org/x/oauth2 v0.27.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
