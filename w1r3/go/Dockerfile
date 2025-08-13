@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.22 AS build
+FROM golang:1.25 AS build
 
 WORKDIR /var/tmp/build/w1r3
 COPY w1r3/ /var/tmp/build/w1r3/w1r3
