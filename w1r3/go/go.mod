@@ -3,7 +3,7 @@ module github.com/googleapis/storage-shared-benchmarking/w1r3
 go 1.22.7
 
 require (
-	cloud.google.com/go/profiler v0.4.1
+	cloud.google.com/go/profiler v0.4.3
 	cloud.google.com/go/storage v1.49.0
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.49.0
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.24.2
