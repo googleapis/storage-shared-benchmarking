@@ -1,5 +1,5 @@
 gitpython==3.1.45
-google-cloud-storage==2.18.0
+google-cloud-storage==2.19.0
 grpcio==1.74.0
 protobuf==4.25.8
 opentelemetry-api==1.36.0
