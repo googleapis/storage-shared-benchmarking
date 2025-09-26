@@ -29,7 +29,7 @@ RUN apk update && \
 # Alpine does not include a package for OpenTelemetry, so we compile it from
 # source.
 WORKDIR /var/tmp/build/opentelemetry-cpp
-RUN curl -fsSL https://github.com/open-telemetry/opentelemetry-cpp/archive/v1.16.1.tar.gz | \
+RUN curl -fsSL https://github.com/open-telemetry/opentelemetry-cpp/archive/v1.23.0.tar.gz | \
     tar -xzf - --strip-components=1 && \
     cmake \
         -G Ninja -S . -B .build \
