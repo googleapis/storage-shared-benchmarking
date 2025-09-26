@@ -26,6 +26,6 @@ COPY .git/ /var/tmp/build/.git
 COPY w1r3/ /var/tmp/build/w1r3
 RUN env -C w1r3/java mvn -DGIT_SHA=$(git rev-parse --verify HEAD) package
 
-FROM eclipse-temurin:21.0.7_6-jdk-jammy
+FROM eclipse-temurin:25-jdk-jammy
 
 COPY --from=build  /var/tmp/build/w1r3/java/target/w1r3-0.0.1-SNAPSHOT.jar /r/w1r3.jar
